@@ -610,7 +610,7 @@ program
     "150000000"
   )
   .option(
-    "-n, --network <url>",
+    "-u, --network <url>",
     "Solana network URL",
     "https://api.devnet.solana.com"
   )
@@ -639,7 +639,7 @@ program
   )
   .requiredOption("-c, --cooldown-slots <number>", "Cooldown slots", "0")
   .option(
-    "-n, --network <url>",
+    "-u, --network <url>",
     "Solana network URL",
     "https://api.devnet.solana.com"
   )
@@ -664,7 +664,7 @@ program
   .requiredOption("--index <number>", "The index of the parameter to update.")
   .requiredOption("--value <string>", "The new value for the parameter.")
   .option(
-    "-n, --network <url>",
+    "-u, --network <url>",
     "Solana network URL",
     "https://api.devnet.solana.com"
   )
@@ -684,7 +684,7 @@ program
   .requiredOption("-k, --keypair <path>", "Path to keypair file")
   .requiredOption("-m, --mint <address>", "Token mint address")
   .option(
-    "-n, --network <url>",
+    "-u, --network <url>",
     "Solana network URL",
     "https://api.devnet.solana.com"
   )
@@ -698,7 +698,7 @@ program
   .requiredOption("-k, --keypair <path>", "Path to keypair file")
   .requiredOption("-m, --mint <address>", "Token mint address")
   .option(
-    "-n, --network <url>",
+    "-u, --network <url>",
     "Solana network URL",
     "https://api.devnet.solana.com"
   )
@@ -713,7 +713,7 @@ program
   .requiredOption("-m, --mint <address>", "Token mint address")
   .requiredOption("-p, --player <address>", "Player wallet address")
   .option(
-    "-n, --network <url>",
+    "-u, --network <url>",
     "Solana network URL",
     "https://api.devnet.solana.com"
   )
@@ -741,7 +741,7 @@ program
   )
   .option("--sol-amount <number>", "Amount of SOL to withdraw (in SOL)", "0")
   .option(
-    "-n, --network <url>",
+    "-u, --network <url>",
     "Solana network URL",
     "https://api.devnet.solana.com"
   )
@@ -829,7 +829,7 @@ program
   .requiredOption("-k, --keypair <path>", "Path to keypair file")
   .requiredOption("-m, --mint <address>", "Token mint address")
   .option(
-    "-n, --network <url>",
+    "-u, --network <url>",
     "Solana network URL",
     "https://api.devnet.solana.com"
   )
@@ -893,7 +893,7 @@ program
   )
   .requiredOption("-k, --keypair <path>", "Path to keypair file")
   .option(
-    "-n, --network <url>",
+    "-u, --network <url>",
     "Solana network URL",
     "https://api.devnet.solana.com"
   )

@@ -10,7 +10,10 @@ use errors::PonzimonError;
 use instructions::*;
 use std::str::FromStr;
 
+#[cfg(feature = "devnet")]
 const ADMIN: &str = "8kvqgxQG77pv6RvEou8f2kHSWi3rtx8F7MksXUqNLGmn";
+#[cfg(not(feature = "devnet"))]
+const ADMIN: &str = "26jWitfbhcoSekDwQVffowob6Qe4cHZRgxEgEN66xqE7";
 
 #[cfg(feature = "devnet")]
 declare_id!("paaCS2AHjb2xucMn4CUdvT65Mp1tWjdk6bhzTqq21QA");
