@@ -56,9 +56,7 @@ pub mod ponzimon {
     pub fn update_pool_manual(ctx: Context<UpdatePool>) -> Result<()> {
         instructions::update_pool_manual(ctx)
     }
-    pub fn update_sol_rewards(ctx: Context<UpdateSolRewards>) -> Result<()> {
-        instructions::update_sol_rewards(ctx)
-    }
+
     pub fn update_parameter(
         ctx: Context<UpdateParameters>,
         parameter_index: u8,
@@ -112,6 +110,10 @@ pub mod ponzimon {
         instructions::recycle_cards_settle(ctx)
     }
 
+    pub fn cancel_pending_action(ctx: Context<CancelPendingAction>) -> Result<()> {
+        instructions::cancel_pending_action(ctx)
+    }
+
     // pub fn stake_tokens(ctx: Context<StakeTokens>, amount: u64) -> Result<()> {
     //     instructions::stake_tokens(ctx, amount)
     // }
@@ -131,10 +133,9 @@ pub mod ponzimon {
     // pub fn gamble_settle(ctx: Context<GambleSettle>) -> Result<()> {
     //     instructions::gamble_settle(ctx)
     // }
-
-    pub fn cancel_pending_action(ctx: Context<CancelPendingAction>) -> Result<()> {
-        instructions::cancel_pending_action(ctx)
-    }
+    // pub fn update_sol_rewards(ctx: Context<UpdateSolRewards>) -> Result<()> {
+    //     instructions::update_sol_rewards(ctx)
+    // }
 }
 
 fn enforce_admin(key: &Pubkey) -> Result<()> {

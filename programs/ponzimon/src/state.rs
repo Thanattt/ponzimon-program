@@ -44,7 +44,6 @@ pub struct GlobalState {
     pub total_successful_card_recycling: u64, // Total number of successful card recycling
 
     /* ── staking pool ───────────────────────────── */
-    pub sol_rewards_wallet: Pubkey,
     pub total_staked_tokens: u64,
     pub staking_lockup_slots: u64,
     pub acc_sol_rewards_per_token: u128, // SOL deposited per staked token (scaled by ACC_SCALE)
