@@ -1372,6 +1372,10 @@ pub fn settle_open_booster(ctx: Context<SettleOpenBooster>) -> Result<()> {
         random_bytes.copy_from_slice(&random_value[slice_start..slice_end]);
         let random_u32 = u32::from_le_bytes(random_bytes);
 
+        // This ensures that the maximum possible result of the division is 999, perfectly mapping
+        // the full range of u32 values to our desired 0-999 range without any bias or out-of-bounds
+        // results. This is important because it ensures that the distribution of rarities is fair
+        // and consistent.
         let random_percent = (random_u32 as u64 * 1000 / (u32::MAX as u64 + 1)) as u32;
 
         let rarity = match random_percent {
