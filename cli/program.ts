@@ -254,7 +254,6 @@ async function initializeProgram(
         globalState: globalStateKey,
         authority: wallet.publicKey,
         feesWallet: feesWallet,
-        solRewardsWallet: solRewardsWallet,
         feesTokenAccount: feesTokenAccount,
         rewardsVault: rewardsVault,
         tokenMint: tokenMint,

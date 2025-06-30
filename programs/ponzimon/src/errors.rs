@@ -118,4 +118,8 @@ pub enum PonzimonError {
     CancelTimeoutNotExpired,
     #[msg("Invalid randomness account owner")]
     InvalidRandomnessAccountOwner,
+    #[msg("Invalid SlotHashes sysvar")]
+    InvalidSlotHashes,
+    #[msg("Slot not found")]
+    SlotNotFound,
 }

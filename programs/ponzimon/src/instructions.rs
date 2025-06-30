@@ -4,6 +4,7 @@ use anchor_spl::{
     associated_token::AssociatedToken,
     token::{self, Burn, Mint, MintTo, Token, TokenAccount, Transfer},
 };
+use anchor_lang::solana_program::sysvar::slot_hashes;
 
 #[event]
 pub struct FarmUpgraded {
@@ -1279,7 +1280,8 @@ pub struct SettleOpenBooster<'info> {
     )]
     pub rewards_vault: Account<'info, TokenAccount>,
     pub token_mint: Account<'info, Mint>,
-    pub slot_hashes: Sysvar<'info, SlotHashes>,
+    /// CHECK: Checked manually, otherwise it exceeds CU
+    pub slot_hashes: AccountInfo<'info>,
 }
 
 pub fn settle_open_booster(ctx: Context<SettleOpenBooster>) -> Result<()> {
@@ -1287,25 +1289,35 @@ pub fn settle_open_booster(ctx: Context<SettleOpenBooster>) -> Result<()> {
     let player = &mut ctx.accounts.player;
     let gs = &mut ctx.accounts.global_state;
 
-    // Security: Validate minimum delay for randomness
     require!(
-        clock.slot
-            >= player
-                .commit_slot
-                .saturating_add(MIN_RANDOMNESS_DELAY_SLOTS),
+        clock.slot >= player.commit_slot + MIN_RANDOMNESS_DELAY_SLOTS,
         PonzimonError::RandomnessNotResolved
+    );
+    let reveal_slot = player.commit_slot + MIN_RANDOMNESS_DELAY_SLOTS;
+
+    let sysvar_slot_history = &ctx.accounts.slot_hashes;
+    require!(
+        sysvar_slot_history.key == &slot_hashes::id(),
+        PonzimonError::InvalidSlotHashes
     );
 
-    let random_value_option = ctx
-        .accounts
-        .slot_hashes
-        .get(&(player.commit_slot + MIN_RANDOMNESS_DELAY_SLOTS));
-    require!(
-        random_value_option.is_some(),
-        PonzimonError::RandomnessNotResolved
-    );
-    let random_value = random_value_option.unwrap().to_bytes();
-    msg!("random_value: {:?}", random_value);
+    let data = sysvar_slot_history.try_borrow_data()?;
+    let num_slot_hashes = u64::from_le_bytes(data[0..8].try_into().unwrap());
+    let mut pos = 8;
+    let mut found_hash = None;
+    for _ in 0..num_slot_hashes {
+        let slot = u64::from_le_bytes(data[pos..pos + 8].try_into().unwrap());
+        pos += 8;
+        let hash = &data[pos..pos + 32];
+        if slot == reveal_slot {
+            msg!("✅ Found slot {} with hash: {:?}", slot, hash);
+            found_hash = Some(hash);
+            break;
+        }
+        pos += 32;
+    }
+
+    let random_value = found_hash.ok_or(PonzimonError::SlotNotFound)?; // Or your preferred error
 
     // Settle rewards before changing berry consumption
     update_pool(gs, clock.slot);
@@ -1694,7 +1706,8 @@ pub struct RecycleCardsSettle<'info> {
     )]
     pub rewards_vault: Account<'info, TokenAccount>,
     pub token_mint: Account<'info, Mint>,
-    pub slot_hashes: Sysvar<'info, SlotHashes>,
+    /// CHECK: Checked manually, otherwise it exceeds CU
+    pub slot_hashes: AccountInfo<'info>,
 }
 
 pub fn recycle_cards_settle(ctx: Context<RecycleCardsSettle>) -> Result<()> {
@@ -1702,21 +1715,35 @@ pub fn recycle_cards_settle(ctx: Context<RecycleCardsSettle>) -> Result<()> {
     let player = &mut ctx.accounts.player;
     let gs = &mut ctx.accounts.global_state;
 
-    // Security: Validate minimum delay for randomness
     require!(
-        clock.slot
-            >= player
-                .commit_slot
-                .saturating_add(MIN_RANDOMNESS_DELAY_SLOTS),
+        clock.slot >= player.commit_slot + MIN_RANDOMNESS_DELAY_SLOTS,
         PonzimonError::RandomnessNotResolved
+    );
+    let reveal_slot = player.commit_slot + MIN_RANDOMNESS_DELAY_SLOTS;
+
+    let sysvar_slot_history = &ctx.accounts.slot_hashes;
+    require!(
+        sysvar_slot_history.key == &slot_hashes::id(),
+        PonzimonError::InvalidSlotHashes
     );
 
-    let random_value_option = ctx.accounts.slot_hashes.get(&(player.commit_slot + MIN_RANDOMNESS_DELAY_SLOTS));
-    require!(
-        random_value_option.is_some(),
-        PonzimonError::RandomnessNotResolved
-    );
-    let random_value = random_value_option.unwrap().to_bytes();
+    let data = sysvar_slot_history.try_borrow_data()?;
+    let num_slot_hashes = u64::from_le_bytes(data[0..8].try_into().unwrap());
+    let mut pos = 8;
+    let mut found_hash = None;
+    for _ in 0..num_slot_hashes {
+        let slot = u64::from_le_bytes(data[pos..pos + 8].try_into().unwrap());
+        pos += 8;
+        let hash = &data[pos..pos + 32];
+        if slot == reveal_slot {
+            msg!("✅ Found slot {} with hash: {:?}", slot, hash);
+            found_hash = Some(hash);
+            break;
+        }
+        pos += 32;
+    }
+
+    let random_value = found_hash.ok_or(PonzimonError::SlotNotFound)?; // Or your preferred error
 
     // Settle rewards before changing player state
     update_pool(gs, clock.slot);
@@ -2360,12 +2387,11 @@ pub fn cancel_pending_action(ctx: Context<CancelPendingAction>) -> Result<()> {
 //         PonzimonError::InsufficientTokens
 //     );
 
- // Security: Validate minimum delay for randomness
+// Security: Validate minimum delay for randomness
 //  require!(
 //     clock.slot
 //         >= player
-//             .commit_slot
-//             .saturating_add(MIN_RANDOMNESS_DELAY_SLOTS),
+//             .commit_slot + MIN_RANDOMNESS_DELAY_SLOTS,
 //     PonzimonError::RandomnessNotResolved
 // );
 
