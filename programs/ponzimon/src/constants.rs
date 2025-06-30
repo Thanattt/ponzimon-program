@@ -18,6 +18,11 @@ pub const ACC_SCALE: u128 = 1_000_000_000_000; // 1e12
 pub const MIN_RANDOMNESS_DELAY_SLOTS: u64 = 2; // Minimum slots between commit and settle
 pub const MAX_CARDS_PER_PLAYER: u8 = 128; // Maximum cards a player can have
 pub const MAX_STAKED_CARDS_PER_PLAYER: u8 = 25; // Maximum staked cards a player can have
+pub const CANCEL_TIMEOUT_SLOTS: u64 = 24; // Approx. 60 seconds
+
+/* ─── DYNAMIC REWARDS ──────────────────────────────────────────────────────── */
+pub const REWARD_RATE_MULTIPLIER_SCALE: u64 = 1000;
+pub const REWARD_RATE_UPDATE_COOLDOWN_SLOTS: u64 = 9000; // Approx. 1 hour (9000 slots / 2.5 slots/sec)
 
 // Card Rarities (matching TypeScript CardRarity enum)
 pub const COMMON: u8 = 0;
@@ -252,7 +257,3 @@ pub fn get_card_by_id(id: u16) -> Option<(u8, u16, u8)> {
         .find(|(card_id, _, _, _)| *card_id == id)
         .map(|(_, rarity, hashpower, berry_consumption)| (*rarity, *hashpower, *berry_consumption))
 }
-
-/* ─── DYNAMIC REWARDS ──────────────────────────────────────────────────────── */
-pub const REWARD_RATE_MULTIPLIER_SCALE: u64 = 1000;
-pub const REWARD_RATE_UPDATE_COOLDOWN_SLOTS: u64 = 9000; // Approx. 1 hour (9000 slots / 2.5 slots/sec)
