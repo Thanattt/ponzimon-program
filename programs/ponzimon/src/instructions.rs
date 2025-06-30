@@ -1,10 +1,10 @@
 use crate::{constants::*, errors::PonzimonError, helpers::*, state::*};
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::sysvar::slot_hashes;
 use anchor_spl::{
     associated_token::AssociatedToken,
     token::{self, Burn, Mint, MintTo, Token, TokenAccount, Transfer},
 };
-use anchor_lang::solana_program::sysvar::slot_hashes;
 
 #[event]
 pub struct FarmUpgraded {
@@ -1629,8 +1629,6 @@ pub struct RecycleCardsCommit<'info> {
     )]
     pub rewards_vault: Account<'info, TokenAccount>,
     pub token_mint: Account<'info, Mint>,
-    /// CHECK: The account's data is validated manually within the handler.
-    pub slot_hashes: Sysvar<'info, SlotHashes>,
 }
 
 pub fn recycle_cards_commit(ctx: Context<RecycleCardsCommit>, card_indices: Vec<u8>) -> Result<()> {
