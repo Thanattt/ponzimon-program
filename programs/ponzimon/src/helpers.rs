@@ -1,7 +1,6 @@
 use crate::{constants::*, errors::PonzimonError};
 use anchor_lang::prelude::*;
 
-
 // Security helper functions
 
 /// Validates that a card index is within bounds for a player's cards
@@ -39,15 +38,6 @@ pub fn safe_sub_hashpower(current: u64, to_sub: u64) -> Result<u64> {
     current
         .checked_sub(to_sub)
         .ok_or(PonzimonError::ArithmeticOverflow.into())
-}
-
-/// Validates minimum delay for randomness operations
-pub fn validate_randomness_delay(commit_slot: u64, current_slot: u64) -> Result<()> {
-    require!(
-        current_slot > commit_slot.saturating_add(MIN_RANDOMNESS_DELAY_SLOTS),
-        PonzimonError::RandomnessDelayNotMet
-    );
-    Ok(())
 }
 
 /// Gets the next higher rarity for card recycling

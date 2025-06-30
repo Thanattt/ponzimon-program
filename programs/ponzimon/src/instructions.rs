@@ -1305,6 +1305,7 @@ pub fn settle_open_booster(ctx: Context<SettleOpenBooster>) -> Result<()> {
         PonzimonError::RandomnessNotResolved
     );
     let random_value = random_value_option.unwrap().to_bytes();
+    msg!("random_value: {:?}", random_value);
 
     // Settle rewards before changing berry consumption
     update_pool(gs, clock.slot);

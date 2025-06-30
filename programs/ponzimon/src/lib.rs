@@ -10,9 +10,15 @@ use errors::PonzimonError;
 use instructions::*;
 use std::str::FromStr;
 
+#[cfg(feature = "devnet")]
 const ADMIN: &str = "8kvqgxQG77pv6RvEou8f2kHSWi3rtx8F7MksXUqNLGmn";
+#[cfg(not(feature = "devnet"))]
+const ADMIN: &str = "26jWitfbhcoSekDwQVffowob6Qe4cHZRgxEgEN66xqE7";
 
-declare_id!("paaCS2AHjb2xucMn4CUdvT65Mp1tWjdk6bhzTqq21QA");
+#[cfg(feature = "devnet")]
+declare_id!("pv6oPCfJmPimABbYCpzYiGeop7w5P6SWQDr9S7ZzFX2");
+#[cfg(not(feature = "devnet"))]
+declare_id!("pmDHaxL3GQ3t5z7TWNaWNsQAdQdZg6okeKpq7psTqyD");
 
 #[program]
 pub mod ponzimon {
