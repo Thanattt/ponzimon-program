@@ -4,8 +4,6 @@ use anchor_spl::{
     associated_token::AssociatedToken,
     token::{self, Burn, Mint, MintTo, Token, TokenAccount, Transfer},
 };
-use std::str::FromStr;
-use switchboard_on_demand::accounts::RandomnessAccountData;
 
 #[event]
 pub struct FarmUpgraded {
@@ -387,7 +385,6 @@ pub struct PurchaseInitialFarm<'info> {
             + 8        // total_gamble_wins: u64
             // --- Consolidated randomness fields ---
             + 130      // pending_action: PendingRandomAction enum (1 byte disc + 129 for largest Recycle variant)
-            + 32       // randomness_account: Pubkey
             + 8        // commit_slot: u64
             // --- Additional player stats ---
             + 8        // total_earnings_for_referrer: u64
@@ -434,8 +431,6 @@ pub struct PurchaseInitialFarm<'info> {
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
     pub rent: Sysvar<'info, Rent>,
-    /// CHECK: The account's data is validated manually within the handler.
-    pub randomness_account_data: AccountInfo<'info>,
 }
 
 #[event]
@@ -467,14 +462,6 @@ pub fn purchase_initial_farm(ctx: Context<PurchaseInitialFarm>) -> Result<()> {
     let slot = Clock::get()?.slot;
     let player = &mut ctx.accounts.player;
     let gs = &mut ctx.accounts.global_state;
-
-    // check owner of randomness_account_data is switchboard
-    // from string to pubkey
-    let switchboard_program_id = &Pubkey::from_str(SWITCHBOARD_PROGRAM_ID).unwrap();
-    require!(
-        ctx.accounts.randomness_account_data.owner == switchboard_program_id,
-        PonzimonError::InvalidRandomnessAccountOwner
-    );
 
     require!(gs.production_enabled, PonzimonError::ProductionDisabled);
     require!(
@@ -591,12 +578,6 @@ pub fn purchase_initial_farm(ctx: Context<PurchaseInitialFarm>) -> Result<()> {
     player.total_gambles = 0;
     player.total_gamble_wins = 0;
     player.pending_action = PendingRandomAction::None;
-    // verify randomness account data is valid
-    #[cfg(not(feature = "test"))]
-    {
-        RandomnessAccountData::parse(ctx.accounts.randomness_account_data.data.borrow()).unwrap();
-    }
-    player.randomness_account = ctx.accounts.randomness_account_data.key();
     player.commit_slot = 0;
 
     // Initialize new tracking fields
@@ -1108,7 +1089,7 @@ pub fn claim_rewards(ctx: Context<ClaimRewards>) -> Result<()> {
 /// OPEN BOOSTER PACK (Secure two-step)
 
 #[derive(Accounts)]
-pub struct RequestOpenBooster<'info> {
+pub struct OpenBoosterCommit<'info> {
     #[account(mut)]
     pub player_wallet: Signer<'info>,
     #[account(
@@ -1149,11 +1130,9 @@ pub struct RequestOpenBooster<'info> {
     #[account(mut)]
     pub token_mint: Account<'info, Mint>,
     pub token_program: Program<'info, Token>,
-    /// CHECK: The account's data is validated manually within the handler.
-    pub randomness_account_data: AccountInfo<'info>,
 }
 
-pub fn request_open_booster(ctx: Context<RequestOpenBooster>) -> Result<()> {
+pub fn open_booster_commit(ctx: Context<OpenBoosterCommit>) -> Result<()> {
     let slot = Clock::get()?.slot;
     let player = &mut ctx.accounts.player;
     let gs = &mut ctx.accounts.global_state;
@@ -1177,17 +1156,6 @@ pub fn request_open_booster(ctx: Context<RequestOpenBooster>) -> Result<()> {
 
     // --- Token Fee, Burn, and Referral Logic ---
     let booster_cost = gs.booster_pack_cost_microtokens;
-
-    require!(
-        ctx.accounts.randomness_account_data.key() == player.randomness_account,
-        PonzimonError::InvalidRandomnessAccount
-    );
-    // Validate Switchboard randomness account
-    let randomness_data =
-        RandomnessAccountData::parse(ctx.accounts.randomness_account_data.data.borrow()).unwrap();
-    if randomness_data.seed_slot != slot - 1 {
-        return Err(PonzimonError::RandomnessAlreadyRevealed.into());
-    }
 
     // Burn/transfer tokens for the pack
     let burn_amount = booster_cost
@@ -1278,7 +1246,7 @@ pub fn request_open_booster(ctx: Context<RequestOpenBooster>) -> Result<()> {
 
     // Set player state for settlement
     player.pending_action = PendingRandomAction::Booster;
-    player.commit_slot = randomness_data.seed_slot;
+    player.commit_slot = slot;
 
     // Update player spending tracking
     player.total_tokens_spent = player.total_tokens_spent.saturating_add(booster_cost);
@@ -1311,8 +1279,7 @@ pub struct SettleOpenBooster<'info> {
     )]
     pub rewards_vault: Account<'info, TokenAccount>,
     pub token_mint: Account<'info, Mint>,
-    /// CHECK: The account's data is validated manually within the handler.
-    pub randomness_account_data: AccountInfo<'info>,
+    pub slot_hashes: Sysvar<'info, SlotHashes>,
 }
 
 pub fn settle_open_booster(ctx: Context<SettleOpenBooster>) -> Result<()> {
@@ -1321,20 +1288,23 @@ pub fn settle_open_booster(ctx: Context<SettleOpenBooster>) -> Result<()> {
     let gs = &mut ctx.accounts.global_state;
 
     // Security: Validate minimum delay for randomness
-    validate_randomness_delay(player.commit_slot, clock.slot)?;
-
     require!(
-        ctx.accounts.randomness_account_data.key() == player.randomness_account,
-        PonzimonError::InvalidRandomnessAccount
+        clock.slot
+            >= player
+                .commit_slot
+                .saturating_add(MIN_RANDOMNESS_DELAY_SLOTS),
+        PonzimonError::RandomnessNotResolved
     );
-    let randomness_data =
-        RandomnessAccountData::parse(ctx.accounts.randomness_account_data.data.borrow()).unwrap();
-    if randomness_data.seed_slot != player.commit_slot {
-        return Err(PonzimonError::RandomnessExpired.into());
-    }
-    let random_value = randomness_data
-        .get_value(&clock)
-        .map_err(|_| PonzimonError::RandomnessNotResolved)?;
+
+    let random_value_option = ctx
+        .accounts
+        .slot_hashes
+        .get(&(player.commit_slot + MIN_RANDOMNESS_DELAY_SLOTS));
+    require!(
+        random_value_option.is_some(),
+        PonzimonError::RandomnessNotResolved
+    );
+    let random_value = random_value_option.unwrap().to_bytes();
 
     // Settle rewards before changing berry consumption
     update_pool(gs, clock.slot);
@@ -1614,7 +1584,6 @@ pub fn reset_player(ctx: Context<ResetPlayer>) -> Result<()> {
 
     // Reset any pending operations
     player.pending_action = PendingRandomAction::None;
-    player.randomness_account = Pubkey::default();
     player.commit_slot = 0;
 
     Ok(())
@@ -1648,7 +1617,7 @@ pub struct RecycleCardsCommit<'info> {
     pub rewards_vault: Account<'info, TokenAccount>,
     pub token_mint: Account<'info, Mint>,
     /// CHECK: The account's data is validated manually within the handler.
-    pub randomness_account_data: AccountInfo<'info>,
+    pub slot_hashes: Sysvar<'info, SlotHashes>,
 }
 
 pub fn recycle_cards_commit(ctx: Context<RecycleCardsCommit>, card_indices: Vec<u8>) -> Result<()> {
@@ -1680,16 +1649,6 @@ pub fn recycle_cards_commit(ctx: Context<RecycleCardsCommit>, card_indices: Vec<
         require!(!player.is_card_staked(index), PonzimonError::CardIsStaked);
     }
 
-    require!(
-        ctx.accounts.randomness_account_data.key() == player.randomness_account,
-        PonzimonError::InvalidRandomnessAccount
-    );
-    let randomness_data =
-        RandomnessAccountData::parse(ctx.accounts.randomness_account_data.data.borrow()).unwrap();
-    if randomness_data.seed_slot != slot - 1 {
-        return Err(PonzimonError::RandomnessAlreadyRevealed.into());
-    }
-
     // Create array from vector (pad with 0s if needed)
     let mut card_indices_array = [0u8; 128];
     for (i, &index) in card_indices.iter().enumerate() {
@@ -1701,7 +1660,7 @@ pub fn recycle_cards_commit(ctx: Context<RecycleCardsCommit>, card_indices: Vec<
         card_indices: card_indices_array,
         card_count: card_indices.len() as u8,
     };
-    player.commit_slot = randomness_data.seed_slot;
+    player.commit_slot = slot;
 
     // Update recycling attempt tracking
     gs.total_card_recycling_attempts = gs.total_card_recycling_attempts.saturating_add(1);
@@ -1734,8 +1693,7 @@ pub struct RecycleCardsSettle<'info> {
     )]
     pub rewards_vault: Account<'info, TokenAccount>,
     pub token_mint: Account<'info, Mint>,
-    /// CHECK: The account's data is validated manually within the handler.
-    pub randomness_account_data: AccountInfo<'info>,
+    pub slot_hashes: Sysvar<'info, SlotHashes>,
 }
 
 pub fn recycle_cards_settle(ctx: Context<RecycleCardsSettle>) -> Result<()> {
@@ -1744,20 +1702,20 @@ pub fn recycle_cards_settle(ctx: Context<RecycleCardsSettle>) -> Result<()> {
     let gs = &mut ctx.accounts.global_state;
 
     // Security: Validate minimum delay for randomness
-    validate_randomness_delay(player.commit_slot, clock.slot)?;
-
     require!(
-        ctx.accounts.randomness_account_data.key() == player.randomness_account,
-        PonzimonError::InvalidRandomnessAccount
+        clock.slot
+            >= player
+                .commit_slot
+                .saturating_add(MIN_RANDOMNESS_DELAY_SLOTS),
+        PonzimonError::RandomnessNotResolved
     );
-    let randomness_data =
-        RandomnessAccountData::parse(ctx.accounts.randomness_account_data.data.borrow()).unwrap();
-    if randomness_data.seed_slot != player.commit_slot {
-        return Err(PonzimonError::RandomnessExpired.into());
-    }
-    let random_value = randomness_data
-        .get_value(&clock)
-        .map_err(|_| PonzimonError::RandomnessNotResolved)?;
+
+    let random_value_option = ctx.accounts.slot_hashes.get(&(player.commit_slot + MIN_RANDOMNESS_DELAY_SLOTS));
+    require!(
+        random_value_option.is_some(),
+        PonzimonError::RandomnessNotResolved
+    );
+    let random_value = random_value_option.unwrap().to_bytes();
 
     // Settle rewards before changing player state
     update_pool(gs, clock.slot);
@@ -1943,7 +1901,6 @@ pub fn cancel_pending_action(ctx: Context<CancelPendingAction>) -> Result<()> {
 
     Ok(())
 }
-
 // ────────────────────────────────────────────────────────────────────────────
 //  STAKING INSTRUCTIONS (DISABLED FOR NOW)
 // ────────────────────────────────────────────────────────────────────────────
@@ -2378,8 +2335,6 @@ pub fn cancel_pending_action(ctx: Context<CancelPendingAction>) -> Result<()> {
 //         constraint = player_token_account.mint == global_state.token_mint
 //     )]
 //     pub player_token_account: Box<Account<'info, TokenAccount>>,
-//     /// CHECK: The account's data is validated manually within the handler.
-//     pub randomness_account_data: AccountInfo<'info>,
 //     /// CHECK: This is the fees recipient wallet from global_state
 //     #[account(
 //         mut,
@@ -2404,19 +2359,22 @@ pub fn cancel_pending_action(ctx: Context<CancelPendingAction>) -> Result<()> {
 //         PonzimonError::InsufficientTokens
 //     );
 
-//     require!(
-//         ctx.accounts.randomness_account_data.key() == player.randomness_account,
-//         PonzimonError::InvalidRandomnessAccount
-//     );
-//     let randomness_data =
-//         RandomnessAccountData::parse(ctx.accounts.randomness_account_data.data.borrow()).unwrap();
+ // Security: Validate minimum delay for randomness
+//  require!(
+//     clock.slot
+//         >= player
+//             .commit_slot
+//             .saturating_add(MIN_RANDOMNESS_DELAY_SLOTS),
+//     PonzimonError::RandomnessNotResolved
+// );
 
-//     if randomness_data.seed_slot != clock.slot - 1 {
-//         msg!("seed_slot: {}", randomness_data.seed_slot);
-//         msg!("slot: {}", clock.slot);
-//         return Err(PonzimonError::RandomnessAlreadyRevealed.into());
-//     }
-
+// let random_value_option = ctx.accounts.slot_hashes.get(&(player.commit_slot + MIN_RANDOMNESS_DELAY_SLOTS))?;
+// require!(
+//     random_value_option.is_some(),
+//     PonzimonError::RandomnessNotResolved
+// );
+// let random_hash = random_value_option.unwrap();
+// let random_value = random_hash.hash.to_bytes();
 //     // Track the player's committed values
 //     player.commit_slot = randomness_data.seed_slot;
 //     player.pending_action = PendingRandomAction::Gamble { amount };

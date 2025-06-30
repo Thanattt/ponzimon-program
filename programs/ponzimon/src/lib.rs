@@ -84,8 +84,8 @@ pub mod ponzimon {
         instructions::discard_card(ctx, card_index)
     }
 
-    pub fn request_open_booster(ctx: Context<RequestOpenBooster>) -> Result<()> {
-        instructions::request_open_booster(ctx)
+    pub fn open_booster_commit(ctx: Context<OpenBoosterCommit>) -> Result<()> {
+        instructions::open_booster_commit(ctx)
     }
     pub fn settle_open_booster(ctx: Context<SettleOpenBooster>) -> Result<()> {
         instructions::settle_open_booster(ctx)

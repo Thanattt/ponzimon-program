@@ -97,9 +97,7 @@ pub struct Player {
     pub total_gambles: u64,     // Total number of times player has gambled
     pub total_gamble_wins: u64, // Total number of times player has won gambling
 
-    // Switchboard randomness fields
     pub pending_action: PendingRandomAction,
-    pub randomness_account: Pubkey, // Reference to the Switchboard randomness account
     pub commit_slot: u64,           // The slot at which the randomness was committed
 
     /* ── additional player stats ──────────────────────── */
@@ -281,7 +279,6 @@ mod tests {
             total_gambles: 0,
             total_gamble_wins: 0,
             pending_action: PendingRandomAction::None,
-            randomness_account: Pubkey::new_unique(),
             commit_slot: 0,
             total_earnings_for_referrer: 0,
             total_booster_packs_opened: 0,

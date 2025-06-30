@@ -1,4 +1,4 @@
-pub const GLOBAL_STATE_SEED: &[u8] = b"global_state";
+pub const GLOBAL_STATE_SEED: &[u8] = b"GLOBAL_STATE";
 pub const PLAYER_SEED: &[u8] = b"player";
 pub const STAKING_VAULT_SEED: &[u8] = b"staking_vault";
 pub const SOL_REWARDS_WALLET_SEED: &[u8] = b"sol_rewards_wallet";
@@ -15,8 +15,8 @@ pub const SWITCHBOARD_PROGRAM_ID: &str = "SBondMDrcV3K4kxZR1HNVT7osZxAHVHgYXL5Ze
 pub const ACC_SCALE: u128 = 1_000_000_000_000; // 1e12
 
 // Security constants
-pub const MIN_RANDOMNESS_DELAY_SLOTS: u64 = 2; // Minimum slots between commit and settle
-pub const MAX_CARDS_PER_PLAYER: u8 = 128; // Maximum cards a player can have
+pub const MIN_RANDOMNESS_DELAY_SLOTS: u64 = 2;
+pub const MAX_CARDS_PER_PLAYER: u8 = 128;
 pub const MAX_STAKED_CARDS_PER_PLAYER: u8 = 25; // Maximum staked cards a player can have
 pub const CANCEL_TIMEOUT_SLOTS: u64 = 24; // Approx. 60 seconds
 
