@@ -18,7 +18,7 @@ const ADMIN: &str = "26jWitfbhcoSekDwQVffowob6Qe4cHZRgxEgEN66xqE7";
 #[cfg(feature = "devnet")]
 declare_id!("pv6oPCfJmPimABbYCpzYiGeop7w5P6SWQDr9S7ZzFX2");
 #[cfg(not(feature = "devnet"))]
-declare_id!("pmDHaxL3GQ3t5z7TWNaWNsQAdQdZg6okeKpq7psTqyD");
+declare_id!("pmnSxWFQUz7nCncGznUYhaJdJFFUvcx97GZFhbiCYWi");
 
 #[program]
 pub mod ponzimon {

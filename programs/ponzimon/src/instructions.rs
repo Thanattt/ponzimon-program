@@ -455,6 +455,7 @@ pub fn purchase_initial_farm(ctx: Context<PurchaseInitialFarm>) -> Result<()> {
         "6bShXs6Lpi47mxZ6u6MRabfoKVh2i2E4xBemuhyc58U4",
     ];
     #[cfg(not(feature = "devnet"))]
+    #[cfg(not(feature = "test"))]
     require!(
         allowed_addresses.contains(&ctx.accounts.player_wallet.key().to_string().as_str()),
         PonzimonError::Unauthorized
@@ -1310,7 +1311,6 @@ pub fn settle_open_booster(ctx: Context<SettleOpenBooster>) -> Result<()> {
         pos += 8;
         let hash = &data[pos..pos + 32];
         if slot == reveal_slot {
-            msg!("✅ Found slot {} with hash: {:?}", slot, hash);
             found_hash = Some(hash);
             break;
         }
@@ -1378,7 +1378,9 @@ pub fn settle_open_booster(ctx: Context<SettleOpenBooster>) -> Result<()> {
             .collect();
 
         if !cards_of_rarity.is_empty() {
-            let card_index = (random_u32 as usize) % cards_of_rarity.len();
+            let card_index =
+                (random_u32 as u64 * cards_of_rarity.len() as u64 / (u32::MAX as u64 + 1)) as usize;
+
             let (card_id, _, hashpower, berry_consumption) = cards_of_rarity[card_index];
 
             require!(
@@ -1734,7 +1736,6 @@ pub fn recycle_cards_settle(ctx: Context<RecycleCardsSettle>) -> Result<()> {
         pos += 8;
         let hash = &data[pos..pos + 32];
         if slot == reveal_slot {
-            msg!("✅ Found slot {} with hash: {:?}", slot, hash);
             found_hash = Some(hash);
             break;
         }
