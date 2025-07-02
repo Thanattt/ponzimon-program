@@ -98,7 +98,7 @@ pub struct Player {
     pub total_gamble_wins: u64, // Total number of times player has won gambling
 
     pub pending_action: PendingRandomAction,
-    pub commit_slot: u64,           // The slot at which the randomness was committed
+    pub commit_slot: u64, // The slot at which the randomness was committed
 
     /* ── additional player stats ──────────────────────── */
     pub total_earnings_for_referrer: u64, // Total tokens this player generated for their referrer
@@ -146,41 +146,30 @@ impl Player {
         false
     }
 
-    pub fn remove_card(&mut self, index: u8) -> Result<()> {
-        let index_usize = index as usize;
-        require!(
-            index_usize < (self.card_count as usize),
-            PonzimonError::CardIndexOutOfBounds
-        );
-
-        // Shift all cards after the removed card to fill the gap
-        for i in index_usize..(self.card_count as usize - 1) {
-            self.cards[i] = self.cards[i + 1];
-        }
-
-        // Update bitset - shift down any staked cards that were after the removed card
-        let original_card_count = self.card_count;
-
-        // Clear the last slot (set to default/zero values)
-        self.cards[(self.card_count - 1) as usize] = Card::default();
-        self.card_count -= 1;
-
+    pub fn batch_remove_cards(&mut self, indices: &[u8]) -> Result<()> {
+        let mut new_cards = Vec::with_capacity(self.card_count as usize);
         let mut new_bitset = 0u128;
+        let mut current_index = 0;
 
-        for i in 0..original_card_count {
-            let old_mask = 1u128 << i;
-            if self.staked_cards_bitset & old_mask != 0 {
-                if i < index {
-                    // Cards before the removed card stay in the same position
-                    new_bitset |= old_mask;
-                } else if i > index {
-                    // Cards after the removed card shift down by 1
-                    new_bitset |= 1u128 << (i - 1);
+        // Build new card array and bitset, skipping removed indices
+        for i in 0..self.card_count {
+            if !indices.contains(&i) {
+                new_cards.push(self.cards[i as usize]);
+                if self.staked_cards_bitset & (1u128 << i) != 0 {
+                    new_bitset |= 1u128 << current_index;
                 }
-                // Cards at the removed index are automatically unstaked
+                current_index += 1;
             }
         }
 
+        // Update cards and bitset
+        for i in 0..new_cards.len() {
+            self.cards[i] = new_cards[i];
+        }
+        for i in new_cards.len()..self.card_count as usize {
+            self.cards[i] = Card::default();
+        }
+        self.card_count = new_cards.len() as u8;
         self.staked_cards_bitset = new_bitset;
 
         Ok(())
@@ -359,7 +348,7 @@ mod tests {
         assert_eq!(player.count_staked_cards(), 3);
 
         // 1. Remove an unstaked card (index 1)
-        player.remove_card(1).unwrap();
+        player.batch_remove_cards(&[1]).unwrap();
         assert_eq!(player.card_count, 4);
 
         // Staked cards were at indices 0, 2, 4. After removing unstaked card at index 1,
@@ -376,7 +365,7 @@ mod tests {
 
         // 2. Remove a staked card (new index 1, was originally index 2)
         // This unstakes and removes the card.
-        player.remove_card(1).unwrap();
+        player.batch_remove_cards(&[1]).unwrap();
         assert_eq!(player.card_count, 3);
 
         // Staked cards were at 0, 3. After removing card at index 1,

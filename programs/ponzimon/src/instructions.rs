@@ -694,7 +694,7 @@ pub fn discard_card(ctx: Context<DiscardCard>, card_index: u8) -> Result<()> {
     )?;
 
     // Remove the card using the helper function
-    player.remove_card(card_index)?;
+    player.batch_remove_cards(&[card_index])?;
 
     player.last_acc_tokens_per_hashpower = gs.acc_tokens_per_hashpower;
 
@@ -1807,15 +1807,8 @@ pub fn recycle_cards_settle(ctx: Context<RecycleCardsSettle>) -> Result<()> {
         // 80% chance: card is lost (no new card generated)
     }
 
-    // Remove the recycled cards (must sort descending to not mess up indices)
-    let mut card_indices_vec: Vec<u8> = card_indices_array[0..card_count as usize].to_vec();
-    card_indices_vec.sort_by(|a, b| b.cmp(a));
-
-    for &index in &card_indices_vec {
-        if (index as usize) < (player.card_count as usize) {
-            player.remove_card(index)?;
-        }
-    }
+    let indices_to_remove: Vec<u8> = card_indices_array[0..card_count as usize].to_vec();
+    player.batch_remove_cards(&indices_to_remove)?;
 
     // Add the new upgraded cards
     for (card_id, rarity, hashpower, berry_consumption) in new_cards {
@@ -1899,30 +1892,18 @@ pub fn cancel_pending_action(ctx: Context<CancelPendingAction>) -> Result<()> {
         PonzimonError::CancelTimeoutNotExpired
     );
 
-    // If the action was a gamble or booster pack, the tokens/SOL have already been spent
-    // and are not refunded. This is the cost of canceling to prevent abuse.
-
-    // If the action being cancelled was recycling, the submitted cards are forfeited
-    // to prevent abuse. The recycling attempt is still counted as a failed one.
     if let PendingRandomAction::Recycle {
         card_indices,
         card_count,
     } = player.pending_action.clone()
     {
-        // Must remove cards from highest index to lowest to avoid shifting issues.
         let mut indices_to_remove: Vec<u8> = card_indices[0..card_count as usize].to_vec();
         indices_to_remove.sort_by(|a, b| b.cmp(a)); // Sort descending
 
-        for &index in &indices_to_remove {
-            // The card is not staked, so we can just remove it.
-            // The remove_card function handles shifting indices correctly.
-            if (index as usize) < (player.card_count as usize) {
-                player.remove_card(index)?;
-            }
-        }
+        // Batch remove cards
+        player.batch_remove_cards(&indices_to_remove)?;
     }
 
-    // Reset the player's pending action state, allowing them to try another action.
     player.pending_action = PendingRandomAction::None;
     player.commit_slot = 0;
 
