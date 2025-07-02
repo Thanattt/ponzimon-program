@@ -486,60 +486,16 @@ pub fn purchase_initial_farm(ctx: Context<PurchaseInitialFarm>) -> Result<()> {
     update_pool(gs, slot);
 
     // --- Fee and Referral Logic ---
-    if let Some(referrer_wallet) = &ctx.accounts.referrer_wallet {
-        // A referrer is provided, so we split the fee into two transfers.
-        let referral_fee_lamports = gs
-            .initial_farm_purchase_fee_lamports
-            .saturating_mul(gs.referral_fee as u64)
-            .saturating_div(100);
-
-        let fees_wallet_amount = gs
-            .initial_farm_purchase_fee_lamports
-            .saturating_sub(referral_fee_lamports);
-
-        // 1. Transfer the referral commission to the referrer's wallet.
-        if referral_fee_lamports > 0 {
-            anchor_lang::system_program::transfer(
-                CpiContext::new(
-                    ctx.accounts.system_program.to_account_info(),
-                    anchor_lang::system_program::Transfer {
-                        from: ctx.accounts.player_wallet.to_account_info(),
-                        to: referrer_wallet.to_account_info(),
-                    },
-                ),
-                referral_fee_lamports,
-            )?;
-            player.total_earnings_for_referrer = player
-                .total_earnings_for_referrer
-                .saturating_add(referral_fee_lamports);
-        }
-
-        // 2. Transfer the remaining protocol fee to the main fees wallet.
-        if fees_wallet_amount > 0 {
-            anchor_lang::system_program::transfer(
-                CpiContext::new(
-                    ctx.accounts.system_program.to_account_info(),
-                    anchor_lang::system_program::Transfer {
-                        from: ctx.accounts.player_wallet.to_account_info(),
-                        to: ctx.accounts.fees_wallet.to_account_info(),
-                    },
-                ),
-                fees_wallet_amount,
-            )?;
-        }
-    } else {
-        // No referrer, so the entire fee goes to the protocol wallet in a single transfer.
-        anchor_lang::system_program::transfer(
-            CpiContext::new(
-                ctx.accounts.system_program.to_account_info(),
-                anchor_lang::system_program::Transfer {
-                    from: ctx.accounts.player_wallet.to_account_info(),
-                    to: ctx.accounts.fees_wallet.to_account_info(),
-                },
-            ),
-            gs.initial_farm_purchase_fee_lamports,
-        )?;
-    }
+    anchor_lang::system_program::transfer(
+        CpiContext::new(
+            ctx.accounts.system_program.to_account_info(),
+            anchor_lang::system_program::Transfer {
+                from: ctx.accounts.player_wallet.to_account_info(),
+                to: ctx.accounts.fees_wallet.to_account_info(),
+            },
+        ),
+        gs.initial_farm_purchase_fee_lamports,
+    )?;
 
     // player bootstrap
     player.owner = ctx.accounts.player_wallet.key();
@@ -948,6 +904,9 @@ pub struct UpgradeFarm<'info> {
         constraint = fees_token_account.owner == global_state.fees_wallet @ PonzimonError::Unauthorized
     )]
     pub fees_token_account: Box<Account<'info, TokenAccount>>,
+     /// CHECK: This is the referrer's token account. Optional, but required if the player has a referrer.
+     #[account(mut)]
+     pub referrer_token_account: Option<Account<'info, TokenAccount>>,
     #[account(mut)]
     pub token_mint: Account<'info, Mint>,
     pub token_program: Program<'info, Token>,
@@ -1014,17 +973,71 @@ pub fn upgrade_farm(ctx: Context<UpgradeFarm>, farm_type: u8) -> Result<()> {
         ),
         burn_amount,
     )?;
-    token::transfer(
-        CpiContext::new(
-            ctx.accounts.token_program.to_account_info(),
-            Transfer {
-                from: ctx.accounts.player_token_account.to_account_info(),
-                to: ctx.accounts.fees_token_account.to_account_info(),
-                authority: ctx.accounts.player_wallet.to_account_info(),
-            },
-        ),
-        fees_amount,
-    )?;
+
+    // Referral commission logic (like open_booster_commit)
+    if let Some(referrer) = player.referrer {
+        require!(
+            ctx.accounts.referrer_token_account.clone().unwrap().owner == referrer.key(),
+            PonzimonError::ReferrerAccountMissing
+        );
+        let referral_commission = fees_amount
+            .saturating_mul(gs.referral_fee as u64)
+            .saturating_div(100);
+        let protocol_fee = fees_amount.saturating_sub(referral_commission);
+
+        // Transfer commission to the referrer.
+        if referral_commission > 0 {
+            token::transfer(
+                CpiContext::new(
+                    ctx.accounts.token_program.to_account_info(),
+                    Transfer {
+                        from: ctx.accounts.player_token_account.to_account_info(),
+                        to: ctx
+                            .accounts
+                            .referrer_token_account
+                            .clone()
+                            .unwrap()
+                            .to_account_info(),
+                        authority: ctx.accounts.player_wallet.to_account_info(),
+                    },
+                ),
+                referral_commission,
+            )?;
+            player.total_earnings_for_referrer = player
+                .total_earnings_for_referrer
+                .saturating_add(referral_commission);
+        }
+
+        // Transfer the remaining fee to the protocol wallet.
+        if protocol_fee > 0 {
+            token::transfer(
+                CpiContext::new(
+                    ctx.accounts.token_program.to_account_info(),
+                    Transfer {
+                        from: ctx.accounts.player_token_account.to_account_info(),
+                        to: ctx.accounts.fees_token_account.to_account_info(),
+                        authority: ctx.accounts.player_wallet.to_account_info(),
+                    },
+                ),
+                protocol_fee,
+            )?;
+        }
+    } else {
+        // No referrer, so the entire fee amount goes to the protocol.
+        if fees_amount > 0 {
+            token::transfer(
+                CpiContext::new(
+                    ctx.accounts.token_program.to_account_info(),
+                    Transfer {
+                        from: ctx.accounts.player_token_account.to_account_info(),
+                        to: ctx.accounts.fees_token_account.to_account_info(),
+                        authority: ctx.accounts.player_wallet.to_account_info(),
+                    },
+                ),
+                fees_amount,
+            )?;
+        }
+    }
 
     emit!(FarmUpgraded {
         player: ctx.accounts.player_wallet.key(),

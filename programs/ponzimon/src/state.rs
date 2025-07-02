@@ -379,4 +379,227 @@ mod tests {
         assert!(player.is_card_staked(2)); // Was 3, now 2
         assert_eq!(player.count_staked_cards(), 2);
     }
+
+    #[test]
+    fn test_batch_remove_multiple_cards() {
+        let mut player = new_player();
+
+        // Add 8 cards
+        for _ in 0..8 {
+            player.add_card(Card::default()).unwrap();
+        }
+        assert_eq!(player.card_count, 8);
+
+        // Stake cards at indices 1, 3, 5, 7 (every other card starting from 1)
+        player.stake_card(1).unwrap();
+        player.stake_card(3).unwrap();
+        player.stake_card(5).unwrap();
+        player.stake_card(7).unwrap();
+        assert_eq!(player.count_staked_cards(), 4);
+
+        // Remove multiple cards at once: indices 2, 4, 6 (all unstaked)
+        player.batch_remove_cards(&[2, 4, 6]).unwrap();
+        assert_eq!(player.card_count, 5);
+
+        // After removal, the remaining cards should be at original indices: 0, 1, 3, 5, 7
+        // Which are now at indices: 0, 1, 2, 3, 4
+        // Staked cards were at 1, 3, 5, 7 → now at 1, 2, 3, 4
+        assert!(player.is_card_staked(1)); // Was index 1, still 1
+        assert!(player.is_card_staked(2)); // Was index 3, now 2
+        assert!(player.is_card_staked(3)); // Was index 5, now 3
+        assert!(player.is_card_staked(4)); // Was index 7, now 4
+        assert_eq!(player.count_staked_cards(), 4);
+    }
+
+    #[test]
+    fn test_batch_remove_consecutive_cards() {
+        let mut player = new_player();
+
+        // Add 6 cards
+        for _ in 0..6 {
+            player.add_card(Card::default()).unwrap();
+        }
+
+        // Stake cards 0, 2, 4
+        player.stake_card(0).unwrap();
+        player.stake_card(2).unwrap();
+        player.stake_card(4).unwrap();
+
+        // Remove consecutive cards 1, 2, 3 (one staked, two unstaked)
+        player.batch_remove_cards(&[1, 2, 3]).unwrap();
+        assert_eq!(player.card_count, 3);
+
+        // Remaining cards are originally 0, 4, 5 → now at indices 0, 1, 2
+        // Staked cards were 0, 4 → now at 0, 1
+        assert!(player.is_card_staked(0)); // Was 0, still 0
+        assert!(player.is_card_staked(1)); // Was 4, now 1
+        assert!(!player.is_card_staked(2)); // Was 5 (unstaked), now 2
+        assert_eq!(player.count_staked_cards(), 2);
+    }
+
+    #[test]
+    fn test_batch_remove_all_cards() {
+        let mut player = new_player();
+
+        // Add 3 cards
+        for _ in 0..3 {
+            player.add_card(Card::default()).unwrap();
+        }
+
+        // Stake all cards
+        player.stake_card(0).unwrap();
+        player.stake_card(1).unwrap();
+        player.stake_card(2).unwrap();
+        assert_eq!(player.count_staked_cards(), 3);
+
+        // Remove all cards
+        player.batch_remove_cards(&[0, 1, 2]).unwrap();
+        assert_eq!(player.card_count, 0);
+        assert_eq!(player.staked_cards_bitset, 0);
+        assert_eq!(player.count_staked_cards(), 0);
+    }
+
+    #[test]
+    fn test_batch_remove_empty_slice() {
+        let mut player = new_player();
+
+        // Add 3 cards and stake them
+        for _ in 0..3 {
+            player.add_card(Card::default()).unwrap();
+        }
+        player.stake_card(0).unwrap();
+        player.stake_card(1).unwrap();
+        player.stake_card(2).unwrap();
+
+        let original_count = player.card_count;
+        let original_bitset = player.staked_cards_bitset;
+
+        // Remove no cards (empty slice)
+        player.batch_remove_cards(&[]).unwrap();
+
+        // Nothing should change
+        assert_eq!(player.card_count, original_count);
+        assert_eq!(player.staked_cards_bitset, original_bitset);
+        assert_eq!(player.count_staked_cards(), 3);
+    }
+
+    #[test]
+    fn test_batch_remove_first_and_last() {
+        let mut player = new_player();
+
+        // Add 5 cards
+        for _ in 0..5 {
+            player.add_card(Card::default()).unwrap();
+        }
+
+        // Stake cards at indices 0, 2, 4 (first, middle, last)
+        player.stake_card(0).unwrap();
+        player.stake_card(2).unwrap();
+        player.stake_card(4).unwrap();
+
+        // Remove first and last cards (both staked)
+        player.batch_remove_cards(&[0, 4]).unwrap();
+        assert_eq!(player.card_count, 3);
+
+        // Remaining cards were originally at indices 1, 2, 3 → now at 0, 1, 2
+        // Only card 2 was staked → now at index 1
+        assert!(!player.is_card_staked(0)); // Was 1 (unstaked), now 0
+        assert!(player.is_card_staked(1)); // Was 2 (staked), now 1
+        assert!(!player.is_card_staked(2)); // Was 3 (unstaked), now 2
+        assert_eq!(player.count_staked_cards(), 1);
+    }
+
+    #[test]
+    fn test_batch_remove_with_gaps() {
+        let mut player = new_player();
+
+        // Add 10 cards
+        for _ in 0..10 {
+            player.add_card(Card::default()).unwrap();
+        }
+
+        // Stake every other card: 1, 3, 5, 7, 9
+        for i in (1..10).step_by(2) {
+            player.stake_card(i).unwrap();
+        }
+        assert_eq!(player.count_staked_cards(), 5);
+
+        // Remove cards with gaps: 1, 5, 8 (two staked, one unstaked)
+        player.batch_remove_cards(&[1, 5, 8]).unwrap();
+        assert_eq!(player.card_count, 7);
+
+        // Original cards:     0  1  2  3  4  5  6  7  8  9
+        // Staked:             -  S  -  S  -  S  -  S  -  S
+        // After removing 1,5,8: 0  2  3  4  6  7  9
+        // New indices:        0  1  2  3  4  5  6
+        // Staked at new:      -  -  S  -  -  S  S
+
+        assert!(!player.is_card_staked(0)); // Was 0 (unstaked)
+        assert!(!player.is_card_staked(1)); // Was 2 (unstaked)
+        assert!(player.is_card_staked(2)); // Was 3 (staked)
+        assert!(!player.is_card_staked(3)); // Was 4 (unstaked)
+        assert!(!player.is_card_staked(4)); // Was 6 (unstaked)
+        assert!(player.is_card_staked(5)); // Was 7 (staked)
+        assert!(player.is_card_staked(6)); // Was 9 (staked)
+        assert_eq!(player.count_staked_cards(), 3);
+    }
+
+    #[test]
+    fn test_batch_remove_duplicate_indices() {
+        let mut player = new_player();
+
+        // Add 4 cards
+        for _ in 0..4 {
+            player.add_card(Card::default()).unwrap();
+        }
+
+        // Stake cards 1 and 3
+        player.stake_card(1).unwrap();
+        player.stake_card(3).unwrap();
+
+        // Try to remove with duplicate indices (should work but only remove once)
+        player.batch_remove_cards(&[1, 2, 1]).unwrap();
+        assert_eq!(player.card_count, 2);
+
+        // Remaining cards are originally 0, 3 → now at 0, 1
+        // Card 3 was staked → now at index 1
+        assert!(!player.is_card_staked(0)); // Was 0 (unstaked)
+        assert!(player.is_card_staked(1)); // Was 3 (staked)
+        assert_eq!(player.count_staked_cards(), 1);
+    }
+
+    #[test]
+    fn test_batch_remove_complex_scenario() {
+        let mut player = new_player();
+
+        // Add maximum number of cards for a realistic test
+        for _ in 0..20 {
+            player.add_card(Card::default()).unwrap();
+        }
+
+        // Create a complex staking pattern
+        let stake_indices = [0, 2, 4, 7, 9, 11, 15, 18, 19];
+        for &i in &stake_indices {
+            player.stake_card(i).unwrap();
+        }
+        assert_eq!(player.count_staked_cards(), 9);
+
+        // Remove a mix of staked and unstaked cards
+        let remove_indices = [1, 4, 6, 7, 10, 15, 17];
+        player.batch_remove_cards(&remove_indices).unwrap();
+        assert_eq!(player.card_count, 13);
+
+        // Verify that the remaining staked cards are correctly positioned
+        // Original: 0, 2, 4, 7, 9, 11, 15, 18, 19 (staked)
+        // Removed:  1, 4, 6, 7, 10, 15, 17
+        // Remaining staked: 0, 2, 9, 11, 18, 19
+        // These should map to new indices after removal
+
+        let staked_count = player.count_staked_cards();
+        // Original staked: 0, 2, 4, 7, 9, 11, 15, 18, 19 (9 cards)
+        // Removed: 1, 4, 6, 7, 10, 15, 17 (7 cards)
+        // Of the removed cards, which were staked? 4, 7, 15 (3 cards)
+        // Remaining staked: 0, 2, 9, 11, 18, 19 (6 cards)
+        assert_eq!(staked_count, 6);
+    }
 }
