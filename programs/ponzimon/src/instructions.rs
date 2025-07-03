@@ -261,8 +261,8 @@ pub fn initialize_program(
     gs.acc_tokens_per_hashpower = 0;
     gs.last_reward_slot = start_slot;
 
-    gs.burn_rate = 75;
-    gs.referral_fee = 25;
+    gs.burn_rate = 80;
+    gs.referral_fee = 100;
     gs.production_enabled = true;
     gs.cooldown_slots = cooldown_slots.unwrap_or(108_000); // 12 hours
     gs.dust_threshold_divisor = 1000; // Default to 0.1%
@@ -911,6 +911,78 @@ pub struct UpgradeFarm<'info> {
     pub referrer_token_account: Option<Account<'info, TokenAccount>>,
 }
 
+/// Helper function to handle fee transfers with referral logic
+fn handle_fee_transfers<'info>(
+    player: &mut Box<Account<'info, Player>>,
+    fees_amount: u64,
+    player_token_account: &AccountInfo<'info>,
+    fees_token_account: &AccountInfo<'info>,
+    referrer_token_account: Option<Account<'info, TokenAccount>>,
+    player_wallet: &AccountInfo<'info>,
+    token_program: &AccountInfo<'info>,
+    referral_fee: u8,
+) -> Result<()> {
+    if let Some(referrer) = player.referrer {
+        require!(
+            referrer_token_account.clone().unwrap().owner == referrer.key(),
+            PonzimonError::ReferrerAccountMissing
+        );
+        let referral_commission = fees_amount
+            .saturating_mul(referral_fee as u64)
+            .saturating_div(100);
+        let protocol_fee = fees_amount.saturating_sub(referral_commission);
+
+        // Transfer commission to the referrer.
+        if referral_commission > 0 {
+            token::transfer(
+                CpiContext::new(
+                    token_program.clone(),
+                    Transfer {
+                        from: player_token_account.clone(),
+                        to: referrer_token_account.clone().unwrap().to_account_info(),
+                        authority: player_wallet.clone(),
+                    },
+                ),
+                referral_commission,
+            )?;
+            player.total_earnings_for_referrer = player
+                .total_earnings_for_referrer
+                .saturating_add(referral_commission);
+        }
+
+        // Transfer the remaining fee to the protocol wallet.
+        if protocol_fee > 0 {
+            token::transfer(
+                CpiContext::new(
+                    token_program.clone(),
+                    Transfer {
+                        from: player_token_account.clone(),
+                        to: fees_token_account.clone(),
+                        authority: player_wallet.clone(),
+                    },
+                ),
+                protocol_fee,
+            )?;
+        }
+    } else {
+        // No referrer, so the entire fee amount goes to the protocol.
+        if fees_amount > 0 {
+            token::transfer(
+                CpiContext::new(
+                    token_program.clone(),
+                    Transfer {
+                        from: player_token_account.clone(),
+                        to: fees_token_account.clone(),
+                        authority: player_wallet.clone(),
+                    },
+                ),
+                fees_amount,
+            )?;
+        }
+    }
+    Ok(())
+}
+
 pub fn upgrade_farm(ctx: Context<UpgradeFarm>, farm_type: u8) -> Result<()> {
     let slot = Clock::get()?.slot;
     let player = &mut ctx.accounts.player;
@@ -973,70 +1045,17 @@ pub fn upgrade_farm(ctx: Context<UpgradeFarm>, farm_type: u8) -> Result<()> {
         burn_amount,
     )?;
 
-    // Referral commission logic (like open_booster_commit)
-    if let Some(referrer) = player.referrer {
-        require!(
-            ctx.accounts.referrer_token_account.clone().unwrap().owner == referrer.key(),
-            PonzimonError::ReferrerAccountMissing
-        );
-        let referral_commission = fees_amount
-            .saturating_mul(gs.referral_fee as u64)
-            .saturating_div(100);
-        let protocol_fee = fees_amount.saturating_sub(referral_commission);
-
-        // Transfer commission to the referrer.
-        if referral_commission > 0 {
-            token::transfer(
-                CpiContext::new(
-                    ctx.accounts.token_program.to_account_info(),
-                    Transfer {
-                        from: ctx.accounts.player_token_account.to_account_info(),
-                        to: ctx
-                            .accounts
-                            .referrer_token_account
-                            .clone()
-                            .unwrap()
-                            .to_account_info(),
-                        authority: ctx.accounts.player_wallet.to_account_info(),
-                    },
-                ),
-                referral_commission,
-            )?;
-            player.total_earnings_for_referrer = player
-                .total_earnings_for_referrer
-                .saturating_add(referral_commission);
-        }
-
-        // Transfer the remaining fee to the protocol wallet.
-        if protocol_fee > 0 {
-            token::transfer(
-                CpiContext::new(
-                    ctx.accounts.token_program.to_account_info(),
-                    Transfer {
-                        from: ctx.accounts.player_token_account.to_account_info(),
-                        to: ctx.accounts.fees_token_account.to_account_info(),
-                        authority: ctx.accounts.player_wallet.to_account_info(),
-                    },
-                ),
-                protocol_fee,
-            )?;
-        }
-    } else {
-        // No referrer, so the entire fee amount goes to the protocol.
-        if fees_amount > 0 {
-            token::transfer(
-                CpiContext::new(
-                    ctx.accounts.token_program.to_account_info(),
-                    Transfer {
-                        from: ctx.accounts.player_token_account.to_account_info(),
-                        to: ctx.accounts.fees_token_account.to_account_info(),
-                        authority: ctx.accounts.player_wallet.to_account_info(),
-                    },
-                ),
-                fees_amount,
-            )?;
-        }
-    }
+    // Handle fee transfers with referral logic
+    handle_fee_transfers(
+        player,
+        fees_amount,
+        &ctx.accounts.player_token_account.to_account_info(),
+        &ctx.accounts.fees_token_account.to_account_info(),
+        ctx.accounts.referrer_token_account.clone(),
+        &ctx.accounts.player_wallet.to_account_info(),
+        &ctx.accounts.token_program.to_account_info(),
+        gs.referral_fee,
+    )?;
 
     emit!(FarmUpgraded {
         player: ctx.accounts.player_wallet.key(),
@@ -1192,70 +1211,17 @@ pub fn open_booster_commit(ctx: Context<OpenBoosterCommit>) -> Result<()> {
         )?;
     }
 
-    // Next, handle the fees, splitting them if a referrer exists.
-    if let Some(referrer) = player.referrer {
-        require!(
-            ctx.accounts.referrer_token_account.clone().unwrap().owner == referrer.key(),
-            PonzimonError::ReferrerAccountMissing
-        );
-        let referral_commission = fees_amount
-            .saturating_mul(gs.referral_fee as u64)
-            .saturating_div(100);
-        let protocol_fee = fees_amount.saturating_sub(referral_commission);
-
-        // Transfer commission to the referrer.
-        if referral_commission > 0 {
-            token::transfer(
-                CpiContext::new(
-                    ctx.accounts.token_program.to_account_info(),
-                    Transfer {
-                        from: ctx.accounts.player_token_account.to_account_info(),
-                        to: ctx
-                            .accounts
-                            .referrer_token_account
-                            .clone()
-                            .unwrap()
-                            .to_account_info(),
-                        authority: ctx.accounts.player_wallet.to_account_info(),
-                    },
-                ),
-                referral_commission,
-            )?;
-            player.total_earnings_for_referrer = player
-                .total_earnings_for_referrer
-                .saturating_add(referral_commission);
-        }
-
-        // Transfer the remaining fee to the protocol wallet.
-        if protocol_fee > 0 {
-            token::transfer(
-                CpiContext::new(
-                    ctx.accounts.token_program.to_account_info(),
-                    Transfer {
-                        from: ctx.accounts.player_token_account.to_account_info(),
-                        to: ctx.accounts.fees_token_account.to_account_info(),
-                        authority: ctx.accounts.player_wallet.to_account_info(),
-                    },
-                ),
-                protocol_fee,
-            )?;
-        }
-    } else {
-        // No referrer, so the entire fee amount goes to the protocol.
-        if fees_amount > 0 {
-            token::transfer(
-                CpiContext::new(
-                    ctx.accounts.token_program.to_account_info(),
-                    Transfer {
-                        from: ctx.accounts.player_token_account.to_account_info(),
-                        to: ctx.accounts.fees_token_account.to_account_info(),
-                        authority: ctx.accounts.player_wallet.to_account_info(),
-                    },
-                ),
-                fees_amount,
-            )?;
-        }
-    }
+    // Handle fee transfers with referral logic
+    handle_fee_transfers(
+        player,
+        fees_amount,
+        &ctx.accounts.player_token_account.to_account_info(),
+        &ctx.accounts.fees_token_account.to_account_info(),
+        ctx.accounts.referrer_token_account.clone(),
+        &ctx.accounts.player_wallet.to_account_info(),
+        &ctx.accounts.token_program.to_account_info(),
+        gs.referral_fee,
+    )?;
 
     // Set player state for settlement
     player.pending_action = PendingRandomAction::Booster;
@@ -1402,8 +1368,8 @@ pub fn settle_open_booster(ctx: Context<SettleOpenBooster>) -> Result<()> {
             let new_card = Card {
                 id: *card_id,
                 rarity,
-                hashpower: *hashpower,
-                berry_consumption: *berry_consumption,
+                hashpower,
+                berry_consumption,
             };
             player.add_card(new_card)?;
             card_ids[i] = *card_id;
@@ -1481,7 +1447,7 @@ pub fn update_parameter(
     match parameter_index {
         0 => {
             // ReferralFee
-            require!(parameter_value <= 50, PonzimonError::InvalidReferralFee);
+            require!(parameter_value <= 100, PonzimonError::InvalidReferralFee);
             global_state.referral_fee = parameter_value as u8;
         }
         1 => {
