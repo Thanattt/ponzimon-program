@@ -904,12 +904,11 @@ pub struct UpgradeFarm<'info> {
         constraint = fees_token_account.owner == global_state.fees_wallet @ PonzimonError::Unauthorized
     )]
     pub fees_token_account: Box<Account<'info, TokenAccount>>,
-     /// CHECK: This is the referrer's token account. Optional, but required if the player has a referrer.
-     #[account(mut)]
-     pub referrer_token_account: Option<Account<'info, TokenAccount>>,
     #[account(mut)]
     pub token_mint: Account<'info, Mint>,
     pub token_program: Program<'info, Token>,
+    #[account(mut)]
+    pub referrer_token_account: Option<Account<'info, TokenAccount>>,
 }
 
 pub fn upgrade_farm(ctx: Context<UpgradeFarm>, farm_type: u8) -> Result<()> {
@@ -1139,7 +1138,6 @@ pub struct OpenBoosterCommit<'info> {
         constraint = fees_token_account.owner == global_state.fees_wallet @ PonzimonError::Unauthorized
     )]
     pub fees_token_account: Box<Account<'info, TokenAccount>>,
-    /// CHECK: This is the referrer's token account. Optional, but required if the player has a referrer.
     #[account(mut)]
     pub referrer_token_account: Option<Account<'info, TokenAccount>>,
     #[account(mut)]
