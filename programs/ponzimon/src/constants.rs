@@ -13,10 +13,6 @@ pub const MAX_CARDS_PER_PLAYER: u8 = 128;
 pub const MAX_STAKED_CARDS_PER_PLAYER: u8 = 25; // Maximum staked cards a player can have
 pub const CANCEL_TIMEOUT_SLOTS: u64 = 24; // Approx. 60 seconds
 
-/* ─── DYNAMIC REWARDS ──────────────────────────────────────────────────────── */
-pub const REWARD_RATE_MULTIPLIER_SCALE: u64 = 1000;
-pub const REWARD_RATE_UPDATE_COOLDOWN_SLOTS: u64 = 9000; // Approx. 1 hour (9000 slots / 2.5 slots/sec)
-
 // Card Rarities (matching TypeScript CardRarity enum)
 pub const COMMON: u8 = 0;
 pub const UNCOMMON: u8 = 1;

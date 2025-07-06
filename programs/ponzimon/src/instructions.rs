@@ -79,14 +79,9 @@ fn update_pool(gs: &mut GlobalState, slot_now: u64) {
         return;
     }
 
-    // Apply the random multiplier to the base rate
-    let effective_rate_now = (rate_now as u128)
-        .saturating_mul(gs.reward_rate_multiplier as u128)
-        .saturating_div(REWARD_RATE_MULTIPLIER_SCALE as u128);
-
     let slots_elapsed = (slot_now - gs.last_reward_slot) as u128;
     let mut reward = slots_elapsed
-        .checked_mul(effective_rate_now as u128)
+        .checked_mul(rate_now as u128)
         .unwrap_or(u128::MAX);
     reward = reward.min(remaining_supply as u128); // clamp to cap
 
@@ -197,7 +192,6 @@ pub struct InitializeProgram<'info> {
         + 8 + 8                 /* total_global_gambles + total_global_gamble_wins */
         + 8 + 8 + 8             /* total_booster_packs_opened + total_card_recycling_attempts + total_successful_card_recycling */
         + 8 + 8 + 16 + 16 + 8 + 8 + 8 /* staking: total_staked_tokens + staking_lockup_slots + acc_sol_rewards_per_token + acc_token_rewards_per_token + last_staking_reward_slot + token_reward_rate + total_sol_deposited */
-        + 8 + 8                 /* dynamic rewards: reward_rate_multiplier + last_rate_update_slot */
         + 64, /* padding for future expansion */
         seeds=[GLOBAL_STATE_SEED, token_mint.key().as_ref()],
         bump
@@ -287,10 +281,6 @@ pub fn initialize_program(
     gs.last_staking_reward_slot = start_slot;
     gs.token_reward_rate = token_reward_rate;
     gs.total_sol_deposited = 0;
-
-    // Dynamic rewards
-    gs.reward_rate_multiplier = REWARD_RATE_MULTIPLIER_SCALE;
-    gs.last_rate_update_slot = start_slot;
 
     // Mint initial supply to rewards vault
     let preminted_supply = ctx.accounts.token_mint.supply;
@@ -905,8 +895,6 @@ pub struct UpgradeFarm<'info> {
     #[account(mut)]
     pub token_mint: Account<'info, Mint>,
     pub token_program: Program<'info, Token>,
-    #[account(mut)]
-    pub referrer_token_account: Option<Account<'info, TokenAccount>>,
 }
 
 pub fn upgrade_farm(ctx: Context<UpgradeFarm>, farm_type: u8) -> Result<()> {
@@ -954,11 +942,10 @@ pub fn upgrade_farm(ctx: Context<UpgradeFarm>, farm_type: u8) -> Result<()> {
         cost,
         &ctx.accounts.player_token_account.to_account_info(),
         &ctx.accounts.fees_token_account.to_account_info(),
-        ctx.accounts.referrer_token_account.clone(),
+        None,
         &ctx.accounts.player_wallet.to_account_info(),
         &ctx.accounts.token_program.to_account_info(),
         &ctx.accounts.token_mint.to_account_info(),
-        false, // No referral for upgrade farm - all fees go to protocol
     )?;
 
     emit!(FarmUpgraded {
@@ -1022,8 +1009,6 @@ pub fn claim_rewards(ctx: Context<ClaimRewards>) -> Result<()> {
 
     Ok(())
 }
-
-/// OPEN BOOSTER PACK (Secure two-step)
 
 #[derive(Accounts)]
 pub struct OpenBoosterCommit<'info> {
@@ -1104,7 +1089,6 @@ pub fn open_booster_commit(ctx: Context<OpenBoosterCommit>) -> Result<()> {
         &ctx.accounts.player_wallet.to_account_info(),
         &ctx.accounts.token_program.to_account_info(),
         &ctx.accounts.token_mint.to_account_info(),
-        true, // Allow referral for openbooster
     )?;
 
     // Set player state for settlement
@@ -1183,29 +1167,6 @@ pub fn settle_open_booster(ctx: Context<SettleOpenBooster>) -> Result<()> {
     // Settle rewards before changing berry consumption
     update_pool(gs, clock.slot);
     player.last_acc_tokens_per_hashpower = gs.acc_tokens_per_hashpower;
-
-    // --- Check if it's time to update the reward rate multiplier ---
-    if clock.slot
-        >= gs
-            .last_rate_update_slot
-            .saturating_add(REWARD_RATE_UPDATE_COOLDOWN_SLOTS)
-    {
-        // Use some bytes from the random value to determine the new multiplier.
-        // Let's use bytes 28-29 for this.
-        let mut multiplier_bytes: [u8; 4] = [0; 4];
-        multiplier_bytes.copy_from_slice(&random_value[26..30]);
-        let random_u32 = u32::from_le_bytes(multiplier_bytes);
-
-        // This creates a range from 0.5x to 1.5x (represented as 500 to 1500)
-        // The average is 1000 (or 1.0x), keeping your economy balanced.
-        // We calculate `random_u32 * (range_size) / (max_random_value)` to avoid modulo bias.
-        let range_size = REWARD_RATE_MULTIPLIER_SCALE; // e.g., 1000
-        let random_addition = (random_u32 as u128 * range_size as u128) / (u32::MAX as u128);
-        let new_multiplier = (REWARD_RATE_MULTIPLIER_SCALE / 2) + random_addition as u64;
-
-        gs.reward_rate_multiplier = new_multiplier;
-        gs.last_rate_update_slot = clock.slot;
-    }
 
     let mut card_ids = [0u16; 5];
     for i in 0..5 {
@@ -1776,7 +1737,6 @@ fn handle_fee_transfers<'info>(
     player_wallet: &AccountInfo<'info>,
     token_program: &AccountInfo<'info>,
     token_mint: &AccountInfo<'info>,
-    allow_referral: bool,
 ) -> Result<()> {
     // Calculate burn and fees amounts
     let burn_amount = total_amount
@@ -1801,67 +1761,50 @@ fn handle_fee_transfers<'info>(
     }
 
     // Handle referral and protocol fees
-    if allow_referral {
-        if let Some(referrer) = player.referrer {
-            require!(
-                referrer_token_account.clone().unwrap().owner == referrer.key(),
-                PonzimonError::ReferrerAccountMissing
-            );
-            let referral_commission = fees_amount
-                .saturating_mul(gs.referral_fee as u64)
-                .saturating_div(100);
-            let protocol_fee = fees_amount.saturating_sub(referral_commission);
+    if let Some(referrer) = player.referrer {
+        require!(
+            referrer_token_account.clone().unwrap().owner == referrer.key(),
+            PonzimonError::ReferrerAccountMissing
+        );
+        let referral_commission = fees_amount
+            .saturating_mul(gs.referral_fee as u64)
+            .saturating_div(100);
+        let protocol_fee = fees_amount.saturating_sub(referral_commission);
 
-            // Transfer commission to the referrer.
-            if referral_commission > 0 {
-                token::transfer(
-                    CpiContext::new(
-                        token_program.clone(),
-                        Transfer {
-                            from: player_token_account.clone(),
-                            to: referrer_token_account.clone().unwrap().to_account_info(),
-                            authority: player_wallet.clone(),
-                        },
-                    ),
-                    referral_commission,
-                )?;
-                player.total_earnings_for_referrer = player
-                    .total_earnings_for_referrer
-                    .saturating_add(referral_commission);
-            }
+        // Transfer commission to the referrer.
+        if referral_commission > 0 {
+            token::transfer(
+                CpiContext::new(
+                    token_program.clone(),
+                    Transfer {
+                        from: player_token_account.clone(),
+                        to: referrer_token_account.clone().unwrap().to_account_info(),
+                        authority: player_wallet.clone(),
+                    },
+                ),
+                referral_commission,
+            )?;
+            player.total_earnings_for_referrer = player
+                .total_earnings_for_referrer
+                .saturating_add(referral_commission);
+        }
 
-            // Transfer the remaining fee to the protocol wallet.
-            if protocol_fee > 0 {
-                token::transfer(
-                    CpiContext::new(
-                        token_program.clone(),
-                        Transfer {
-                            from: player_token_account.clone(),
-                            to: fees_token_account.clone(),
-                            authority: player_wallet.clone(),
-                        },
-                    ),
-                    protocol_fee,
-                )?;
-            }
-        } else {
-            // No referrer, so the entire fee amount goes to the protocol.
-            if fees_amount > 0 {
-                token::transfer(
-                    CpiContext::new(
-                        token_program.clone(),
-                        Transfer {
-                            from: player_token_account.clone(),
-                            to: fees_token_account.clone(),
-                            authority: player_wallet.clone(),
-                        },
-                    ),
-                    fees_amount,
-                )?;
-            }
+        // Transfer the remaining fee to the protocol wallet.
+        if protocol_fee > 0 {
+            token::transfer(
+                CpiContext::new(
+                    token_program.clone(),
+                    Transfer {
+                        from: player_token_account.clone(),
+                        to: fees_token_account.clone(),
+                        authority: player_wallet.clone(),
+                    },
+                ),
+                protocol_fee,
+            )?;
         }
     } else {
-        // Referral not allowed, so the entire fee amount goes to the protocol.
+        // No referrer, so the entire fee amount goes to the protocol.
         if fees_amount > 0 {
             token::transfer(
                 CpiContext::new(
@@ -1876,5 +1819,6 @@ fn handle_fee_transfers<'info>(
             )?;
         }
     }
+
     Ok(())
 }
