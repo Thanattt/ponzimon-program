@@ -22,7 +22,6 @@ pub struct GlobalState {
     pub burn_rate: u8,               // % of token cost burned (default 75)
     pub referral_fee: u8,            // % of rewards to referrer (default 25)
     pub production_enabled: bool,    // Global kill-switch
-    pub cooldown_slots: u64,         // Farm upgrade cooldown
     pub dust_threshold_divisor: u64, // Divisor for total_supply to get dust_threshold (default 1000 for 0.1%)
 
     /* ── fee configuration ──────────────────────── */

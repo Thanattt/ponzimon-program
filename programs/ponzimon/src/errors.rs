@@ -44,8 +44,6 @@ pub enum PonzimonError {
     InvalidReferralFee,
     #[msg("Invalid burn rate, must be between 0 and 100")]
     InvalidBurnRate,
-    #[msg("Invalid cooldown slots, must be > 0")]
-    InvalidCooldownSlots,
     #[msg("Invalid halving interval, must be > 0")]
     InvalidHalvingInterval,
     #[msg("Invalid dust threshold divisor, must be > 0")]

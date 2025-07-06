@@ -191,7 +191,7 @@ pub struct InitializeProgram<'info> {
         + 8  + 8                /* total_supply + burned_tokens */
         + 8  + 8                /* cumulative_rewards + start_slot */
         + 8  + 16 + 8           /* reward_rate + acc_tokens_per_hashpower + last_reward_slot */
-        + 1  + 1 + 1 + 8 + 8    /* burn_rate + referral_fee + prod + cooldown + dust_divisor */
+        + 1  + 1 + 1 + 8    /* burn_rate + referral_fee + prod + dust_divisor */
         + 8 + 8 + 8             /* initial_farm_purchase_fee_lamports + booster_pack_cost_microtokens + gamble_fee_lamports */
         + 8 + 8                 /* total_berries + total_hashpower */
         + 8 + 8                 /* total_global_gambles + total_global_gamble_wins */
@@ -237,7 +237,6 @@ pub fn initialize_program(
     start_slot: u64,
     total_supply: u64,
     reward_rate: u64,
-    cooldown_slots: Option<u64>,
     initial_farm_purchase_fee_lamports: Option<u64>,
     booster_pack_cost_microtokens: Option<u64>,
     gamble_fee_lamports: Option<u64>,
@@ -264,7 +263,6 @@ pub fn initialize_program(
     gs.burn_rate = 80;
     gs.referral_fee = 100;
     gs.production_enabled = true;
-    gs.cooldown_slots = cooldown_slots.unwrap_or(108_000); // 12 hours
     gs.dust_threshold_divisor = 1000; // Default to 0.1%
 
     // Initialize fee configuration with defaults from constants
@@ -919,10 +917,6 @@ pub fn upgrade_farm(ctx: Context<UpgradeFarm>, farm_type: u8) -> Result<()> {
     update_pool(gs, slot);
 
     require!(gs.production_enabled, PonzimonError::ProductionDisabled);
-    require!(
-        slot >= player.last_upgrade_slot + gs.cooldown_slots,
-        PonzimonError::CooldownNotExpired
-    );
 
     settle_and_mint_rewards(
         player,
@@ -964,6 +958,7 @@ pub fn upgrade_farm(ctx: Context<UpgradeFarm>, farm_type: u8) -> Result<()> {
         &ctx.accounts.player_wallet.to_account_info(),
         &ctx.accounts.token_program.to_account_info(),
         &ctx.accounts.token_mint.to_account_info(),
+        false, // No referral for upgrade farm - all fees go to protocol
     )?;
 
     emit!(FarmUpgraded {
@@ -1109,6 +1104,7 @@ pub fn open_booster_commit(ctx: Context<OpenBoosterCommit>) -> Result<()> {
         &ctx.accounts.player_wallet.to_account_info(),
         &ctx.accounts.token_program.to_account_info(),
         &ctx.accounts.token_mint.to_account_info(),
+        true, // Allow referral for openbooster
     )?;
 
     // Set player state for settlement
@@ -1316,14 +1312,13 @@ pub struct UpdateParameters<'info> {
 /// * `parameter_index` - The index of the parameter to update:
 ///     - 0: ReferralFee (u8)
 ///     - 1: BurnRate (u8)
-///     - 2: CooldownSlots (u64)
-///     - 3: DustThresholdDivisor (u64)
-///     - 4: InitialFarmPurchaseFeeLamports (u64)
-///     - 5: BoosterPackCostMicrotokens (u64)
-///     - 6: GambleFeeLamports (u64)
-///     - 7: StakingLockupSlots (u64)
-///     - 8: TokenRewardRate (u64)
-///     - 9: RewardRate (u64)
+///     - 2: DustThresholdDivisor (u64)
+///     - 3: InitialFarmPurchaseFeeLamports (u64)
+///     - 4: BoosterPackCostMicrotokens (u64)
+///     - 5: GambleFeeLamports (u64)
+///     - 6: StakingLockupSlots (u64)
+///     - 7: TokenRewardRate (u64)
+///     - 8: RewardRate (u64)
 /// * `parameter_value` - The new value for the parameter.
 pub fn update_parameter(
     ctx: Context<UpdateParameters>,
@@ -1344,11 +1339,6 @@ pub fn update_parameter(
             global_state.burn_rate = parameter_value as u8;
         }
         2 => {
-            // CooldownSlots
-            require!(parameter_value > 0, PonzimonError::InvalidCooldownSlots);
-            global_state.cooldown_slots = parameter_value;
-        }
-        3 => {
             // DustThresholdDivisor
             require!(
                 parameter_value > 0,
@@ -1356,27 +1346,27 @@ pub fn update_parameter(
             );
             global_state.dust_threshold_divisor = parameter_value;
         }
-        4 => {
+        3 => {
             // InitialFarmPurchaseFeeLamports
             global_state.initial_farm_purchase_fee_lamports = parameter_value;
         }
-        5 => {
+        4 => {
             // BoosterPackCostMicrotokens
             global_state.booster_pack_cost_microtokens = parameter_value;
         }
-        6 => {
+        5 => {
             // GambleFeeLamports
             global_state.gamble_fee_lamports = parameter_value;
         }
-        7 => {
+        6 => {
             // StakingLockupSlots
             global_state.staking_lockup_slots = parameter_value;
         }
-        8 => {
+        7 => {
             // TokenRewardRate
             global_state.token_reward_rate = parameter_value;
         }
-        9 => {
+        8 => {
             // RewardRate
             global_state.reward_rate = parameter_value;
         }
@@ -1639,7 +1629,7 @@ pub fn recycle_cards_settle(ctx: Context<RecycleCardsSettle>) -> Result<()> {
         let card = &player.cards[card_index as usize];
         let current_rarity = card.rarity;
 
-        // Use different slice of random value for each card
+        // Use different slice of the random value for each card
         let random_byte_index = (i as usize) % random_value.len();
         let random_byte = random_value[random_byte_index];
 
@@ -1786,6 +1776,7 @@ fn handle_fee_transfers<'info>(
     player_wallet: &AccountInfo<'info>,
     token_program: &AccountInfo<'info>,
     token_mint: &AccountInfo<'info>,
+    allow_referral: bool,
 ) -> Result<()> {
     // Calculate burn and fees amounts
     let burn_amount = total_amount
@@ -1810,50 +1801,67 @@ fn handle_fee_transfers<'info>(
     }
 
     // Handle referral and protocol fees
-    if let Some(referrer) = player.referrer {
-        require!(
-            referrer_token_account.clone().unwrap().owner == referrer.key(),
-            PonzimonError::ReferrerAccountMissing
-        );
-        let referral_commission = fees_amount
-            .saturating_mul(gs.referral_fee as u64)
-            .saturating_div(100);
-        let protocol_fee = fees_amount.saturating_sub(referral_commission);
+    if allow_referral {
+        if let Some(referrer) = player.referrer {
+            require!(
+                referrer_token_account.clone().unwrap().owner == referrer.key(),
+                PonzimonError::ReferrerAccountMissing
+            );
+            let referral_commission = fees_amount
+                .saturating_mul(gs.referral_fee as u64)
+                .saturating_div(100);
+            let protocol_fee = fees_amount.saturating_sub(referral_commission);
 
-        // Transfer commission to the referrer.
-        if referral_commission > 0 {
-            token::transfer(
-                CpiContext::new(
-                    token_program.clone(),
-                    Transfer {
-                        from: player_token_account.clone(),
-                        to: referrer_token_account.clone().unwrap().to_account_info(),
-                        authority: player_wallet.clone(),
-                    },
-                ),
-                referral_commission,
-            )?;
-            player.total_earnings_for_referrer = player
-                .total_earnings_for_referrer
-                .saturating_add(referral_commission);
-        }
+            // Transfer commission to the referrer.
+            if referral_commission > 0 {
+                token::transfer(
+                    CpiContext::new(
+                        token_program.clone(),
+                        Transfer {
+                            from: player_token_account.clone(),
+                            to: referrer_token_account.clone().unwrap().to_account_info(),
+                            authority: player_wallet.clone(),
+                        },
+                    ),
+                    referral_commission,
+                )?;
+                player.total_earnings_for_referrer = player
+                    .total_earnings_for_referrer
+                    .saturating_add(referral_commission);
+            }
 
-        // Transfer the remaining fee to the protocol wallet.
-        if protocol_fee > 0 {
-            token::transfer(
-                CpiContext::new(
-                    token_program.clone(),
-                    Transfer {
-                        from: player_token_account.clone(),
-                        to: fees_token_account.clone(),
-                        authority: player_wallet.clone(),
-                    },
-                ),
-                protocol_fee,
-            )?;
+            // Transfer the remaining fee to the protocol wallet.
+            if protocol_fee > 0 {
+                token::transfer(
+                    CpiContext::new(
+                        token_program.clone(),
+                        Transfer {
+                            from: player_token_account.clone(),
+                            to: fees_token_account.clone(),
+                            authority: player_wallet.clone(),
+                        },
+                    ),
+                    protocol_fee,
+                )?;
+            }
+        } else {
+            // No referrer, so the entire fee amount goes to the protocol.
+            if fees_amount > 0 {
+                token::transfer(
+                    CpiContext::new(
+                        token_program.clone(),
+                        Transfer {
+                            from: player_token_account.clone(),
+                            to: fees_token_account.clone(),
+                            authority: player_wallet.clone(),
+                        },
+                    ),
+                    fees_amount,
+                )?;
+            }
         }
     } else {
-        // No referrer, so the entire fee amount goes to the protocol.
+        // Referral not allowed, so the entire fee amount goes to the protocol.
         if fees_amount > 0 {
             token::transfer(
                 CpiContext::new(
