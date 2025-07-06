@@ -232,18 +232,16 @@ async function initializeProgram(
     console.log("Initializing program...", totalSupplyArg);
     const TOTAL_SUPPLY = new BN(Number(totalSupplyArg) * 10 ** TOKEN_DECIMALS);
     const REWARD_RATE = new BN(rewardRateArg);
-    const COOLDOWN_SLOTS = new BN(0);
-    const initialFarmPurchaseFeeLamports = new BN(300_000_000); // 0.3 SOL
-    const boosterPackCostMicrotokens = new BN(10_000_000);
+    const initialFarmPurchaseFeeLamports = new BN(350_000_000); // 0.3 SOL
+    const boosterPackCostMicrotokens = new BN(20_000_000);
     const gambleFeeLamports = new BN(gambleFeeLamportsArg);
     const stakingLockupSlots = new BN(stakingLockupSlotsArg);
     const tokenRewardRate = new BN(tokenRewardRateArg);
-    const tx = await program.methods
+    const tx = await program.methods  
       .initializeProgram(
-        currentSlot,
+        currentSlot.add(new BN(45_000)), // 45_000 slots = 5 hours
         TOTAL_SUPPLY,
         REWARD_RATE,
-        COOLDOWN_SLOTS,
         initialFarmPurchaseFeeLamports,
         boosterPackCostMicrotokens,
         gambleFeeLamports,

@@ -16,7 +16,7 @@ const ADMIN: &str = "8kvqgxQG77pv6RvEou8f2kHSWi3rtx8F7MksXUqNLGmn";
 const ADMIN: &str = "26jWitfbhcoSekDwQVffowob6Qe4cHZRgxEgEN66xqE7";
 
 #[cfg(feature = "devnet")]
-declare_id!("pvekieApRea3N57CSFFoiGiscpvXayU8FQ9WgzfPkUC");
+declare_id!("pv5gAmRb1GZ92k7iuLe5JdNmj5R8Ch61N4beuf2yEdK");
 #[cfg(not(feature = "devnet"))]
 declare_id!("pmnSxWFQUz7nCncGznUYhaJdJFFUvcx97GZFhbiCYWi");
 
