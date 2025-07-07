@@ -106,6 +106,11 @@ fn settle_and_mint_rewards<'info>(
     // update pool to now
     update_pool(gs, now);
 
+    if now < gs.start_slot {
+        player.last_claim_slot = now;
+        return Ok(0);
+    }
+
     require!(
         now > player.last_claim_slot,
         PonzimonError::CooldownNotExpired
