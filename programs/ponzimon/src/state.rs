@@ -79,7 +79,7 @@ impl Default for PendingRandomAction {
 pub struct Player {
     pub owner: Pubkey,
     pub farm: Farm,
-    pub cards: [Card; MAX_CARDS_PER_PLAYER as usize], // Support up to 200 cards total
+    pub cards: [Card; MAX_CARDS_PER_PLAYER as usize], // Support up to 128 cards total
     pub card_count: u8,                               // Track actual number of cards
     pub staked_cards_bitset: u128,                    // Changed from u64 to u128
     pub berries: u64, // Total berry consumption by staked cards (for capacity limiting)
@@ -126,20 +126,7 @@ impl Player {
         Ok(())
     }
 
-    pub fn is_card_being_recycled(&self, card_index: u8) -> bool {
-        if let PendingRandomAction::Recycle {
-            card_indices,
-            card_count,
-        } = &self.pending_action
-        {
-            for i in 0..*card_count {
-                if card_indices[i as usize] == card_index {
-                    return true;
-                }
-            }
-        }
-        false
-    }
+
 
     pub fn batch_remove_cards(&mut self, indices: &[u8]) -> Result<()> {
         let mut new_cards = Vec::with_capacity(self.card_count as usize);

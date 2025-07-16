@@ -133,15 +133,13 @@ fn settle_and_mint_rewards<'info>(
         pending = remaining_supply;
     }
 
-    if pending == 0 {
-        player.last_claim_slot = now;
-        player.last_acc_tokens_per_hashpower = gs.acc_tokens_per_hashpower;
-        return Ok(0);
-    }
-
     // update player bookkeeping
     player.last_claim_slot = now;
     player.last_acc_tokens_per_hashpower = gs.acc_tokens_per_hashpower;
+
+    if pending == 0 {
+        return Ok(0);
+    }
 
     // Give the player their full rewards - no deduction for referrals
     let player_amount = pending;
@@ -186,7 +184,7 @@ pub struct InitializeProgram<'info> {
     #[account(
         init,
         payer = authority,
-        space = 8  /* discriminator */
+        space = 8  /* discriminator */ 
         + 32 + 32 + 32          /* authority + mint + fees_wallet */
         + 8  + 8                /* total_supply + burned_tokens */
         + 8  + 8                /* cumulative_rewards + start_slot */
@@ -267,7 +265,7 @@ pub fn initialize_program(
     // Initialize fee configuration with defaults from constants
     gs.initial_farm_purchase_fee_lamports =
         initial_farm_purchase_fee_lamports.unwrap_or(300_000_000); // 0.3 SOL
-    gs.booster_pack_cost_microtokens = booster_pack_cost_microtokens.unwrap_or(100_000_000); // 10 tokens
+    gs.booster_pack_cost_microtokens = booster_pack_cost_microtokens.unwrap_or(20_000_000); // 20 tokens
     gs.gamble_fee_lamports = gamble_fee_lamports.unwrap_or(100_000_000); // 0.1 SOL
 
     gs.total_berries = 0;
@@ -576,6 +574,7 @@ pub struct DiscardCard<'info> {
     #[account(
         mut,
         constraint = player.owner == player_wallet.key() @ PonzimonError::Unauthorized,
+        constraint = player.pending_action == PendingRandomAction::None @ PonzimonError::CardPendingRecycling,
         seeds = [PLAYER_SEED, player_wallet.key().as_ref(), token_mint.key().as_ref()],
         bump
     )]
@@ -625,12 +624,6 @@ pub fn discard_card(ctx: Context<DiscardCard>, card_index: u8) -> Result<()> {
         PonzimonError::CardIsStaked
     );
 
-    // Ensure the card is not currently being recycled
-    require!(
-        !player.is_card_being_recycled(card_index),
-        PonzimonError::CardIsStaked // Reusing this error for consistency
-    );
-
     settle_and_mint_rewards(
         player,
         gs,
@@ -644,8 +637,6 @@ pub fn discard_card(ctx: Context<DiscardCard>, card_index: u8) -> Result<()> {
 
     // Remove the card using the helper function
     player.batch_remove_cards(&[card_index])?;
-
-    player.last_acc_tokens_per_hashpower = gs.acc_tokens_per_hashpower;
 
     emit!(CardDiscarded {
         player: player.key(),
@@ -666,6 +657,7 @@ pub struct StakeCard<'info> {
     #[account(
         mut,
         constraint = player.owner == player_wallet.key() @ PonzimonError::Unauthorized,
+        constraint = player.pending_action == PendingRandomAction::None @ PonzimonError::CardPendingRecycling,
         seeds = [PLAYER_SEED, player_wallet.key().as_ref(), token_mint.key().as_ref()],
         bump
     )]
@@ -720,12 +712,6 @@ pub fn stake_card(ctx: Context<StakeCard>, card_index: u8) -> Result<()> {
         PonzimonError::CardIsStaked // Using for "already staked"
     );
 
-    // Ensure the card is not currently being recycled
-    require!(
-        !player.is_card_being_recycled(card_index),
-        PonzimonError::CardIsStaked // Reusing this error for consistency
-    );
-
     require!(
         player.count_staked_cards() < player.farm.total_cards,
         PonzimonError::MachineCapacityExceeded
@@ -772,6 +758,7 @@ pub struct UnstakeCard<'info> {
     #[account(
         mut,
         constraint = player.owner == player_wallet.key() @ PonzimonError::Unauthorized,
+        constraint = player.pending_action == PendingRandomAction::None @ PonzimonError::CardPendingRecycling,
         seeds = [PLAYER_SEED, player_wallet.key().as_ref(), token_mint.key().as_ref()],
         bump
     )]
@@ -824,12 +811,6 @@ pub fn unstake_card(ctx: Context<UnstakeCard>, card_index: u8) -> Result<()> {
     require!(
         player.is_card_staked(card_index),
         PonzimonError::CardNotStaked
-    );
-
-    // Ensure the card is not currently being recycled
-    require!(
-        !player.is_card_being_recycled(card_index),
-        PonzimonError::CardIsStaked // Reusing this error for consistency
     );
 
     let card = &player.cards[card_index as usize];
@@ -907,8 +888,6 @@ pub fn upgrade_farm(ctx: Context<UpgradeFarm>, farm_type: u8) -> Result<()> {
     let player = &mut ctx.accounts.player;
     let gs = &mut ctx.accounts.global_state;
 
-    update_pool(gs, slot);
-
     require!(gs.production_enabled, PonzimonError::ProductionDisabled);
 
     settle_and_mint_rewards(
@@ -935,7 +914,6 @@ pub fn upgrade_farm(ctx: Context<UpgradeFarm>, farm_type: u8) -> Result<()> {
     player.farm.total_cards = total_cards;
     player.farm.berry_capacity = berry_capacity;
     player.last_upgrade_slot = slot;
-    player.last_acc_tokens_per_hashpower = gs.acc_tokens_per_hashpower;
 
     // Update player spending tracking
     player.total_tokens_spent = player.total_tokens_spent.saturating_add(cost);
@@ -1132,7 +1110,15 @@ pub struct SettleOpenBooster<'info> {
         bump,
     )]
     pub rewards_vault: Account<'info, TokenAccount>,
+    #[account(
+        mut,
+        constraint = player_token_account.mint == global_state.token_mint,
+        constraint = player_token_account.owner == player_wallet.key() @ PonzimonError::InvalidTokenAccountOwner
+    )]
+    pub player_token_account: Box<Account<'info, TokenAccount>>,
+    #[account(mut)]
     pub token_mint: Account<'info, Mint>,
+    pub token_program: Program<'info, Token>,
     /// CHECK: Checked manually, otherwise it exceeds CU
     pub slot_hashes: AccountInfo<'info>,
 }
@@ -1172,8 +1158,16 @@ pub fn settle_open_booster(ctx: Context<SettleOpenBooster>) -> Result<()> {
     let random_value = found_hash.ok_or(PonzimonError::SlotNotFound)?; // Or your preferred error
 
     // Settle rewards before changing berry consumption
-    update_pool(gs, clock.slot);
-    player.last_acc_tokens_per_hashpower = gs.acc_tokens_per_hashpower;
+    settle_and_mint_rewards(
+        player,
+        gs,
+        clock.slot,
+        &ctx.accounts.player_token_account.to_account_info(),
+        &ctx.accounts.token_mint.to_account_info(),
+        &ctx.accounts.rewards_vault.to_account_info(),
+        &ctx.accounts.token_program.to_account_info(),
+        ctx.bumps.global_state,
+    )?;
 
     let mut card_ids = [0u16; 5];
     for i in 0..5 {
@@ -1373,7 +1367,6 @@ pub struct ResetPlayer<'info> {
         has_one = authority @ PonzimonError::Unauthorized,
         seeds = [GLOBAL_STATE_SEED, token_mint.key().as_ref()],
         bump,
-        constraint = token_mint.key() == global_state.token_mint @ PonzimonError::InvalidTokenMint
     )]
     pub global_state: Account<'info, GlobalState>,
     #[account(
@@ -1382,6 +1375,9 @@ pub struct ResetPlayer<'info> {
         bump
     )]
     pub player: Box<Account<'info, Player>>,
+    #[account(
+        constraint = token_mint.key() == global_state.token_mint @ PonzimonError::InvalidTokenMint
+    )]
     pub token_mint: Account<'info, Mint>,
     /// CHECK: This is just a system account
     pub player_wallet: AccountInfo<'info>,
@@ -1453,7 +1449,17 @@ pub struct RecycleCardsCommit<'info> {
         bump,
     )]
     pub rewards_vault: Account<'info, TokenAccount>,
+    #[account(
+        mut,
+        constraint = player_token_account.mint == global_state.token_mint,
+        constraint = player_token_account.owner == player_wallet.key() @ PonzimonError::InvalidTokenAccountOwner
+    )]
+    pub player_token_account: Box<Account<'info, TokenAccount>>,
+    #[account(
+        constraint = token_mint.key() == global_state.token_mint @ PonzimonError::InvalidTokenMint
+    )]
     pub token_mint: Account<'info, Mint>,
+    pub token_program: Program<'info, Token>,
 }
 
 pub fn recycle_cards_commit(ctx: Context<RecycleCardsCommit>, card_indices: Vec<u8>) -> Result<()> {
@@ -1470,6 +1476,18 @@ pub fn recycle_cards_commit(ctx: Context<RecycleCardsCommit>, card_indices: Vec<
         player.card_count as usize >= card_indices.len(),
         PonzimonError::InvalidRecycleCardCount
     );
+
+    // Settle pending rewards before starting recycle process
+    settle_and_mint_rewards(
+        player,
+        gs,
+        slot,
+        &ctx.accounts.player_token_account.to_account_info(),
+        &ctx.accounts.token_mint.to_account_info(),
+        &ctx.accounts.rewards_vault.to_account_info(),
+        &ctx.accounts.token_program.to_account_info(),
+        ctx.bumps.global_state,
+    )?;
 
     // Validate card indices: must be unique, valid, and not staked
     let mut sorted_indices = card_indices.clone();
@@ -1528,7 +1546,15 @@ pub struct RecycleCardsSettle<'info> {
         bump,
     )]
     pub rewards_vault: Account<'info, TokenAccount>,
+    #[account(
+        mut,
+        constraint = player_token_account.mint == global_state.token_mint,
+        constraint = player_token_account.owner == player_wallet.key() @ PonzimonError::InvalidTokenAccountOwner
+    )]
+    pub player_token_account: Box<Account<'info, TokenAccount>>,
+    #[account(mut)]
     pub token_mint: Account<'info, Mint>,
+    pub token_program: Program<'info, Token>,
     /// CHECK: Checked manually, otherwise it exceeds CU
     pub slot_hashes: AccountInfo<'info>,
 }
@@ -1568,8 +1594,16 @@ pub fn recycle_cards_settle(ctx: Context<RecycleCardsSettle>) -> Result<()> {
     let random_value = found_hash.ok_or(PonzimonError::SlotNotFound)?; // Or your preferred error
 
     // Settle rewards before changing player state
-    update_pool(gs, clock.slot);
-    player.last_acc_tokens_per_hashpower = gs.acc_tokens_per_hashpower;
+    settle_and_mint_rewards(
+        player,
+        gs,
+        clock.slot,
+        &ctx.accounts.player_token_account.to_account_info(),
+        &ctx.accounts.token_mint.to_account_info(),
+        &ctx.accounts.rewards_vault.to_account_info(),
+        &ctx.accounts.token_program.to_account_info(),
+        ctx.bumps.global_state,
+    )?;
 
     // Extract recycled card data from pending action
     let (card_indices_array, card_count) = if let PendingRandomAction::Recycle {
@@ -1703,12 +1737,32 @@ pub struct CancelPendingAction<'info> {
         bump,
     )]
     pub rewards_vault: Account<'info, TokenAccount>,
+    #[account(
+        mut,
+        constraint = player_token_account.mint == global_state.token_mint,
+        constraint = player_token_account.owner == player_wallet.key() @ PonzimonError::InvalidTokenAccountOwner
+    )]
+    pub player_token_account: Box<Account<'info, TokenAccount>>,
+    #[account(mut)]
     pub token_mint: Account<'info, Mint>,
+    pub token_program: Program<'info, Token>,
 }
 
 pub fn cancel_pending_action(ctx: Context<CancelPendingAction>) -> Result<()> {
     let player = &mut ctx.accounts.player;
     let clock = Clock::get()?;
+
+    // Settle pending rewards before canceling action
+    settle_and_mint_rewards(
+        player,
+        &mut ctx.accounts.global_state,
+        clock.slot,
+        &ctx.accounts.player_token_account.to_account_info(),
+        &ctx.accounts.token_mint.to_account_info(),
+        &ctx.accounts.rewards_vault.to_account_info(),
+        &ctx.accounts.token_program.to_account_info(),
+        ctx.bumps.global_state,
+    )?;
 
     require!(
         clock.slot > player.commit_slot + CANCEL_TIMEOUT_SLOTS,
