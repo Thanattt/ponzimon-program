@@ -627,10 +627,6 @@ program
     "-t, --total-supply <number>",
     "Total supply (integer, e.g. 21000000000000)"
   )
-  .requiredOption(
-    "-r, --reward-rate <number>",
-    "Reward rate (integer, e.g. 50000000)"
-  )
   .requiredOption("-c, --cooldown-slots <number>", "Cooldown slots", "0")
   .option(
     "-u, --network <url>",
@@ -643,7 +639,6 @@ program
       opts.mint,
       opts.feesWallet,
       opts.totalSupply,
-      opts.rewardRate,
       opts.network
     );
   });
