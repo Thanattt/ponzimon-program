@@ -60,7 +60,7 @@ fn update_pool(gs: &mut GlobalState, slot_now: u64) {
         gs.last_reward_slot = slot_now;
         return;
     }
-    
+
     // Calculate the current reward rate based on elapsed time
     let rate_now = calculate_current_reward_rate(slot_now, gs.start_slot);
 
@@ -185,7 +185,7 @@ pub struct InitializeProgram<'info> {
     #[account(
         init,
         payer = authority,
-        space = 8  /* discriminator */ 
+        space = 8  /* discriminator */
         + 32 + 32 + 32          /* authority + mint + fees_wallet */
         + 8  + 8                /* total_supply + burned_tokens */
         + 8  + 8                /* cumulative_rewards + start_slot */
@@ -221,7 +221,8 @@ pub struct InitializeProgram<'info> {
     pub rewards_vault: Account<'info, TokenAccount>,
     #[account(
         mut,
-        constraint = token_mint.mint_authority.unwrap() == global_state.key() @ PonzimonError::InvalidMintAuthority
+        constraint = token_mint.mint_authority.unwrap() == global_state.key() @ PonzimonError::InvalidMintAuthority,
+        constraint = token_mint.decimals == 6 @ PonzimonError::InvalidDecimals
     )]
     pub token_mint: Account<'info, Mint>,
     pub token_program: Program<'info, Token>,
@@ -406,10 +407,7 @@ pub struct PurchaseInitialFarm<'info> {
     /// CHECK: This is the referrer's wallet. Optional. If provided, the wallet key is used as the referrer.
     #[account(mut)]
     pub referrer_wallet: Option<AccountInfo<'info>>,
-    #[account(
-        mut,
-        constraint = token_mint.key() == global_state.token_mint @ PonzimonError::InvalidTokenMint
-    )]
+    #[account()]
     pub token_mint: Account<'info, Mint>,
     #[account(
         init_if_needed,
@@ -602,7 +600,7 @@ pub struct DiscardCard<'info> {
         constraint = fees_token_account.owner == global_state.fees_wallet @ PonzimonError::Unauthorized
     )]
     pub fees_token_account: Box<Account<'info, TokenAccount>>,
-    #[account(mut)]
+    #[account()]
     pub token_mint: Account<'info, Mint>,
     pub token_program: Program<'info, Token>,
 }
@@ -673,9 +671,7 @@ pub struct StakeCard<'info> {
         bump,
     )]
     pub rewards_vault: Account<'info, TokenAccount>,
-    #[account(
-        constraint = token_mint.key() == global_state.token_mint @ PonzimonError::InvalidTokenMint
-    )]
+    #[account()]
     pub token_mint: Account<'info, Mint>,
     #[account(
         mut,
@@ -774,9 +770,7 @@ pub struct UnstakeCard<'info> {
         bump,
     )]
     pub rewards_vault: Account<'info, TokenAccount>,
-    #[account(
-        constraint = token_mint.key() == global_state.token_mint @ PonzimonError::InvalidTokenMint
-    )]
+    #[account()]
     pub token_mint: Account<'info, Mint>,
     #[account(
         mut,
@@ -971,7 +965,7 @@ pub struct ClaimRewards<'info> {
         constraint = player_token_account.mint == global_state.token_mint
     )]
     pub player_token_account: Box<Account<'info, TokenAccount>>,
-    #[account(mut)]
+    #[account()]
     pub token_mint: Account<'info, Mint>,
     pub token_program: Program<'info, Token>,
 }
@@ -1115,7 +1109,7 @@ pub struct SettleOpenBooster<'info> {
         constraint = player_token_account.owner == player_wallet.key() @ PonzimonError::InvalidTokenAccountOwner
     )]
     pub player_token_account: Box<Account<'info, TokenAccount>>,
-    #[account(mut)]
+    #[account()]
     pub token_mint: Account<'info, Mint>,
     pub token_program: Program<'info, Token>,
     /// CHECK: Checked manually, otherwise it exceeds CU
@@ -1374,9 +1368,7 @@ pub struct ResetPlayer<'info> {
         bump
     )]
     pub player: Box<Account<'info, Player>>,
-    #[account(
-        constraint = token_mint.key() == global_state.token_mint @ PonzimonError::InvalidTokenMint
-    )]
+    #[account()]
     pub token_mint: Account<'info, Mint>,
     /// CHECK: This is just a system account
     pub player_wallet: AccountInfo<'info>,
@@ -1454,9 +1446,7 @@ pub struct RecycleCardsCommit<'info> {
         constraint = player_token_account.owner == player_wallet.key() @ PonzimonError::InvalidTokenAccountOwner
     )]
     pub player_token_account: Box<Account<'info, TokenAccount>>,
-    #[account(
-        constraint = token_mint.key() == global_state.token_mint @ PonzimonError::InvalidTokenMint
-    )]
+    #[account()]
     pub token_mint: Account<'info, Mint>,
     pub token_program: Program<'info, Token>,
 }
@@ -1551,7 +1541,7 @@ pub struct RecycleCardsSettle<'info> {
         constraint = player_token_account.owner == player_wallet.key() @ PonzimonError::InvalidTokenAccountOwner
     )]
     pub player_token_account: Box<Account<'info, TokenAccount>>,
-    #[account(mut)]
+    #[account()]
     pub token_mint: Account<'info, Mint>,
     pub token_program: Program<'info, Token>,
     /// CHECK: Checked manually, otherwise it exceeds CU
@@ -1742,7 +1732,7 @@ pub struct CancelPendingAction<'info> {
         constraint = player_token_account.owner == player_wallet.key() @ PonzimonError::InvalidTokenAccountOwner
     )]
     pub player_token_account: Box<Account<'info, TokenAccount>>,
-    #[account(mut)]
+    #[account()]
     pub token_mint: Account<'info, Mint>,
     pub token_program: Program<'info, Token>,
 }

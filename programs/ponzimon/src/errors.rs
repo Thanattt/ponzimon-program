@@ -120,4 +120,8 @@ pub enum PonzimonError {
     InvalidSlotHashes,
     #[msg("Slot not found")]
     SlotNotFound,
+    #[msg("Invalid token mint decimals")]
+    InvalidTokenMintDecimals,
+    #[msg("Invalid decimals")]
+    InvalidDecimals,
 }
