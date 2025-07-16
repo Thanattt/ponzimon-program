@@ -177,7 +177,7 @@ class LiteSVMTestHelper {
       INITIALIZE_PROGRAM_DISCRIMINATOR,
       this.serializeBN(new BN(0)), // startSlot
       this.serializeBN(new BN("1000000000000000")), // totalSupply
-      this.serializeBN(new BN(352733915)), // initialRewardRate
+
       Buffer.from([0]), // cooldownSlots (Option<u64> = None)
       Buffer.from([0]), // initialFarmPurchaseFeeLamports (Option<u64> = None)
       Buffer.from([0]), // boosterPackCostMicrotokens (Option<u64> = None)

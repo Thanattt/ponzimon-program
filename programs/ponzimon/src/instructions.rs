@@ -60,7 +60,9 @@ fn update_pool(gs: &mut GlobalState, slot_now: u64) {
         gs.last_reward_slot = slot_now;
         return;
     }
-    let rate_now = gs.reward_rate;
+    
+    // Calculate the current reward rate based on elapsed time
+    let rate_now = calculate_current_reward_rate(slot_now, gs.start_slot);
 
     /* remaining supply after accounting for burns */
     let minted_minus_burn = gs.cumulative_rewards.saturating_sub(gs.burned_tokens);
@@ -71,10 +73,8 @@ fn update_pool(gs: &mut GlobalState, slot_now: u64) {
     } else {
         0 // Avoid division by zero, effectively disabling dust threshold if misconfigured
     };
-    // Check if we're close to depleting the supply
+    // Check if we're close to depleting the supply or no rewards scheduled
     if remaining_supply <= dust_threshold || rate_now == 0 {
-        // Then set rate to zero to prevent future mining
-        gs.reward_rate = 0;
         gs.last_reward_slot = slot_now;
         return;
     }
@@ -87,6 +87,7 @@ fn update_pool(gs: &mut GlobalState, slot_now: u64) {
 
     gs.acc_tokens_per_hashpower += reward * ACC_SCALE / gs.total_hashpower as u128;
     gs.cumulative_rewards = gs.cumulative_rewards.saturating_add(reward as u64);
+    gs.reward_rate = rate_now;
 
     gs.last_reward_slot = slot_now;
 }
@@ -233,7 +234,6 @@ pub fn initialize_program(
     ctx: Context<InitializeProgram>,
     start_slot: u64,
     total_supply: u64,
-    reward_rate: u64,
     initial_farm_purchase_fee_lamports: Option<u64>,
     booster_pack_cost_microtokens: Option<u64>,
     gamble_fee_lamports: Option<u64>,
@@ -252,7 +252,6 @@ pub fn initialize_program(
     gs.cumulative_rewards = 0;
 
     gs.start_slot = start_slot;
-    gs.reward_rate = reward_rate;
 
     gs.acc_tokens_per_hashpower = 0;
     gs.last_reward_slot = start_slot;

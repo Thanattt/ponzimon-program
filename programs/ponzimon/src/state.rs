@@ -126,8 +126,6 @@ impl Player {
         Ok(())
     }
 
-
-
     pub fn batch_remove_cards(&mut self, indices: &[u8]) -> Result<()> {
         let mut new_cards = Vec::with_capacity(self.card_count as usize);
         let mut new_bitset = 0u128;

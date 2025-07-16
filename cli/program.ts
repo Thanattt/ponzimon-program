@@ -168,7 +168,6 @@ async function initializeProgram(
   mintPubkey: string,
   feesWalletAddress: string,
   totalSupplyArg: string,
-  rewardRateArg: string = "5555555",
   network: string,
   gambleFeeLamportsArg: string = "100000000",
   stakingLockupSlotsArg: string = "432000",
@@ -231,17 +230,15 @@ async function initializeProgram(
 
     console.log("Initializing program...", totalSupplyArg);
     const TOTAL_SUPPLY = new BN(Number(totalSupplyArg) * 10 ** TOKEN_DECIMALS);
-    const REWARD_RATE = new BN(rewardRateArg);
     const initialFarmPurchaseFeeLamports = new BN(350_000_000); // 0.3 SOL
     const boosterPackCostMicrotokens = new BN(20_000_000);
     const gambleFeeLamports = new BN(gambleFeeLamportsArg);
     const stakingLockupSlots = new BN(stakingLockupSlotsArg);
     const tokenRewardRate = new BN(tokenRewardRateArg);
-    const tx = await program.methods  
+    const tx = await program.methods
       .initializeProgram(
         currentSlot.add(new BN(45_000)), // 45_000 slots = 5 hours
         TOTAL_SUPPLY,
-        REWARD_RATE,
         initialFarmPurchaseFeeLamports,
         boosterPackCostMicrotokens,
         gambleFeeLamports,
@@ -654,7 +651,7 @@ program
 program
   .command("update-parameter")
   .description(
-    "Update a single program parameter by index. Indices: 0:ReferralFee, 1:BurnRate, 2:CooldownSlots, 3:DustThresholdDivisor, 4:InitialFarmPurchaseFeeLamports, 5:BoosterPackCostMicrotokens, 6:GambleFeeLamports, 7:StakingLockupSlots, 8:TokenRewardRate, 9:RewardRate"
+    "Update a single program parameter by index. Indices: 0:ReferralFee, 1:BurnRate, 2:CooldownSlots, 3:DustThresholdDivisor, 4:InitialFarmPurchaseFeeLamports, 5:BoosterPackCostMicrotokens, 6:GambleFeeLamports, 7:StakingLockupSlots, 8:TokenRewardRate"
   )
   .requiredOption("-k, --keypair <path>", "Path to keypair file")
   .requiredOption("-m, --mint <address>", "Token mint address")

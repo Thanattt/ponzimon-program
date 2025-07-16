@@ -239,6 +239,24 @@ pub const CARD_DATA: [(u16, u8, u16, u8); 191] = [
     (191, COMMON, 4, 2),        // Pebblepup (duplicate of 177)
 ];
 
+// === Multi-stage reward system constants ====================================================
+// Each slot represents 400ms, so:
+// 1 day = 86,400 seconds / 0.4 seconds per slot = 216,000 slots per day
+pub const SLOTS_PER_DAY: u64 = 216_000;
+
+// Three stages of 30 days each
+pub const STAGE_1_DURATION_SLOTS: u64 = 30 * SLOTS_PER_DAY; // Days 1-30
+pub const STAGE_2_DURATION_SLOTS: u64 = 30 * SLOTS_PER_DAY; // Days 31-60
+pub const STAGE_3_DURATION_SLOTS: u64 = 30 * SLOTS_PER_DAY; // Days 61-90
+
+// Reward rates in micro-tokens per slot (assuming 6 decimals)
+// Stage 1: 255,000 tokens/day = 255,000 * 1,000,000 / 216,000 = 1,180,556 micro-tokens per slot
+pub const STAGE_1_REWARD_RATE: u64 = 1_180_556;
+// Stage 2: 198,333 tokens/day = 198,333 * 1,000,000 / 216,000 = 918,208 micro-tokens per slot
+pub const STAGE_2_REWARD_RATE: u64 = 918_208;
+// Stage 3: 141,667 tokens/day = 141,667 * 1,000,000 / 216,000 = 655,847 micro-tokens per slot
+pub const STAGE_3_REWARD_RATE: u64 = 655_847;
+
 // Helper function to get card data by ID
 pub fn get_card_by_id(id: u16) -> Option<(u8, u16, u8)> {
     CARD_DATA
