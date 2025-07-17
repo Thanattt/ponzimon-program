@@ -44,10 +44,10 @@ const SOL_REWARDS_WALLET_SEED = "sol_rewards_wallet";
 
 // Add metadata configuration
 const TOKEN_METADATA = {
-  name: "testing",
-  symbol: "test",
-  uri: "https://jade-brilliant-frog-932.mypinata.cloud/ipfs/bafkreigbbqqdqkga7cf7ylf67zc2mm6mua6ndvk7q4e2gpueevcwcfpgcq",
-  external_url: "https://testing.gg",
+  name: "nomiznop",
+  symbol: "IZNOP",
+  uri: "https://ipfs.io/ipfs/bafkreidl5zo7ym72akt2guny76deendqguht53g27cmgjqw3dbel2xoxhe",
+  external_url: "https://ponzimon.com",
 };
 
 const TOKEN_DECIMALS = 6;
@@ -96,18 +96,6 @@ async function mintToken(
     const updateAuthoritySigner = createSignerFromKeypair(umi, authorityKey);
     umi.use(mplTokenMetadata()).use(signerIdentity(updateAuthoritySigner));
 
-    // Setup connection and provider
-    const connection = new anchor.web3.Connection(network);
-    const provider = new anchor.AnchorProvider(
-      connection,
-      new anchor.Wallet(wallet as any),
-      { commitment: "confirmed" }
-    );
-    anchor.setProvider(provider);
-
-    // Get program
-    const program = anchor.workspace.Ponzimon as Program<Ponzimon>;
-
     // Create token mint - either from custom keypair or generate new one
     console.log("Creating token mint...");
     let mint;
@@ -155,7 +143,6 @@ async function mintToken(
       tx: base58.deserialize(minttx.signature)[0],
     });
 
-    const tokenMint = new PublicKey(mint.publicKey);
     // ... you can continue with further logic if needed ...
   } catch (error) {
     console.error("Error:", error);
@@ -230,14 +217,14 @@ async function initializeProgram(
 
     console.log("Initializing program...", totalSupplyArg);
     const TOTAL_SUPPLY = new BN(Number(totalSupplyArg) * 10 ** TOKEN_DECIMALS);
-    const initialFarmPurchaseFeeLamports = new BN(350_000_000); // 0.3 SOL
-    const boosterPackCostMicrotokens = new BN(20_000_000);
+    const initialFarmPurchaseFeeLamports = new BN(350_000_000); // 0.35 SOL
+    const boosterPackCostMicrotokens = new BN(200_000_000); // 200 tokens
     const gambleFeeLamports = new BN(gambleFeeLamportsArg);
     const stakingLockupSlots = new BN(stakingLockupSlotsArg);
     const tokenRewardRate = new BN(tokenRewardRateArg);
     const tx = await program.methods
       .initializeProgram(
-        currentSlot.add(new BN(45_000)), // 45_000 slots = 5 hours
+        currentSlot.add(new BN(36_000)), // 36_000 slots = 4 hours.  4*60*60/0,4
         TOTAL_SUPPLY,
         initialFarmPurchaseFeeLamports,
         boosterPackCostMicrotokens,
@@ -601,7 +588,7 @@ program
   .option(
     "-a, --amount <number>",
     "Amount to mint to the owner (in whole tokens, default: 210000)",
-    "150000000"
+    "3150000"
   )
   .option(
     "-u, --network <url>",
@@ -610,7 +597,9 @@ program
   )
   .action(async (opts) => {
     // Parse amount as a number and convert to smallest units (assuming 6 decimals)
-    const amount = BigInt(Math.floor(Number(opts.amount) * 1e6));
+    const amount = BigInt(
+      Math.floor(Number(opts.amount) * 10 ** TOKEN_DECIMALS)
+    );
     await mintToken(opts.keypair, opts.network, opts.mintKeypair, amount);
   });
 

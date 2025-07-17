@@ -265,7 +265,7 @@ pub fn initialize_program(
     // Initialize fee configuration with defaults from constants
     gs.initial_farm_purchase_fee_lamports =
         initial_farm_purchase_fee_lamports.unwrap_or(300_000_000); // 0.3 SOL
-    gs.booster_pack_cost_microtokens = booster_pack_cost_microtokens.unwrap_or(20_000_000); // 20 tokens
+    gs.booster_pack_cost_microtokens = booster_pack_cost_microtokens.unwrap_or(200_000_000); // 200 tokens
     gs.gamble_fee_lamports = gamble_fee_lamports.unwrap_or(100_000_000); // 0.1 SOL
 
     gs.total_berries = 0;
