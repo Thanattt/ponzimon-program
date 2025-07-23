@@ -44,9 +44,9 @@ const SOL_REWARDS_WALLET_SEED = "sol_rewards_wallet";
 
 // Add metadata configuration
 const TOKEN_METADATA = {
-  name: "nomiznop",
-  symbol: "IZNOP",
-  uri: "https://ipfs.io/ipfs/bafkreidl5zo7ym72akt2guny76deendqguht53g27cmgjqw3dbel2xoxhe",
+  name: "Ponzimon",
+  symbol: "PONZI",
+  uri: "https://ipfs.io/ipfs/bafybeihmbp5ho7kzvtx3b3v4n7quw35v57526xa5gfalpgzvvhyirmcmvu",
   external_url: "https://ponzimon.com",
 };
 
