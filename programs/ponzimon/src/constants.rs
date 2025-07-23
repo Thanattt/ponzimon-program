@@ -29,17 +29,17 @@ pub const STARTER_CARD_IDS: [u16; 3] = [179, 175, 147]; // Glowhare, Flitterfrog
 // format: (total_cards, berry_capacity, cost_in_microtokens)
 // Note: Converting costs from data.ts to microtokens (multiply by 1_000_000)
 pub const FARM_CONFIGS: [(u8, u64, u64); 11] = [
-    (0, 0, 0),                  // Level 0 - Initial state before buying first farm
-    (2, 6, 0), // Level 1 - slotQuantity: 2, berryAvailable: 6, cost: 0 (first farm free)
-    (4, 12, 100_000_000), // Level 2 - slotQuantity: 4, berryAvailable: 12, cost: 100 tokens
-    (7, 20, 200_000_000), // Level 3 - slotQuantity: 7, berryAvailable: 20, cost: 200 tokens
-    (10, 40, 400_000_000), // Level 4 - slotQuantity: 10, berryAvailable: 40, cost: 400 tokens
-    (13, 70, 800_000_000), // Level 5 - slotQuantity: 13, berryAvailable: 70, cost: 800 tokens
-    (16, 130, 1_600_000_000), // Level 6 - slotQuantity: 16, berryAvailable: 130, cost: 1600 tokens
-    (19, 230, 3_200_000_000), // Level 7 - slotQuantity: 19, berryAvailable: 230, cost: 3200 tokens
-    (22, 420, 6_400_000_000), // Level 8 - slotQuantity: 22, berryAvailable: 420, cost: 6400 tokens
-    (24, 780, 12_800_000_000), // Level 9 - slotQuantity: 24, berryAvailable: 780, cost: 12800 tokens
-    (25, 2000, 25_600_000_000), // Level 10 - slotQuantity: 25, berryAvailable: 2000, cost: 25600 tokens
+    (0, 0, 0),                      // Level 0 - Initial state before buying first farm
+    (2, 6, 0),                      // Level 1 - slotQuantity: 2, berryAvailable: 6, cost: 0 (first farm free)
+    (4, 12, 1_000_000_000),         // Level 2 - slotQuantity: 4, berryAvailable: 12, cost: 1.000 tokens
+    (7, 20, 2_000_000_000),         // Level 3 - slotQuantity: 7, berryAvailable: 20, cost: 2.000 tokens
+    (10, 40, 4_000_000_000),        // Level 4 - slotQuantity: 10, berryAvailable: 40, cost: 4.000 tokens
+    (13, 70, 8_000_000_000),        // Level 5 - slotQuantity: 13, berryAvailable: 70, cost: 8.000 tokens
+    (16, 110, 16_000_000_000),      // Level 6 - slotQuantity: 16, berryAvailable: 110, cost: 16.000 tokens
+    (19, 230, 32_000_000_000),      // Level 7 - slotQuantity: 19, berryAvailable: 230, cost: 32.000 tokens
+    (22, 420, 64_000_000_000),      // Level 8 - slotQuantity: 22, berryAvailable: 420, cost: 64.000 tokens
+    (24, 800, 128_000_000_000),     // Level 9 - slotQuantity: 24, berryAvailable: 800, cost: 128.000 tokens
+    (25, 2000, 256_000_000_000),    // Level 10 - slotQuantity: 25, berryAvailable: 2000, cost: 256.000 tokens
 ];
 
 // === Card data from pokemonCardList in data.ts ====================================================
