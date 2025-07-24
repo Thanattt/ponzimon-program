@@ -869,8 +869,6 @@ pub fn upgrade_farm(ctx: Context<UpgradeFarm>, farm_type: u8) -> Result<()> {
     let player = &mut ctx.accounts.player;
     let gs = &mut ctx.accounts.global_state;
 
-    require!(slot >= gs.start_slot, PonzimonError::ProductionDisabled);
-
     require!(gs.production_enabled, PonzimonError::ProductionDisabled);
 
     settle_and_mint_rewards(
