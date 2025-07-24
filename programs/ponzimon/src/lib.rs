@@ -13,12 +13,12 @@ use std::str::FromStr;
 #[cfg(feature = "devnet")]
 const ADMIN: &str = "8kvqgxQG77pv6RvEou8f2kHSWi3rtx8F7MksXUqNLGmn";
 #[cfg(not(feature = "devnet"))]
-const ADMIN: &str = "26jWitfbhcoSekDwQVffowob6Qe4cHZRgxEgEN66xqE7";
+const ADMIN: &str = "973zBrSe9ujPTbvKpxeAb6DVPjmvRmJUUvwXrpxSTfeb";
 
 #[cfg(feature = "devnet")]
 declare_id!("pvbX31Yg4c5tapUPmcrMAMEM85G4QmUjHxdv9Kuct61");
 #[cfg(not(feature = "devnet"))]
-declare_id!("pms897jTNbFiyoUSbRN9VQ5EhtBKh7p9nWuBDQecFSA");
+declare_id!("PNZdxJNSEFmp2UZ39pEekFHZf15emsrbkaHv36xjgtx");
 
 #[program]
 pub mod ponzimon {

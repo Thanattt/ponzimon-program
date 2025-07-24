@@ -18,6 +18,9 @@ import { createUmi } from "@metaplex-foundation/umi-bundle-defaults";
 import {
   mplTokenMetadata,
   createFungible,
+  updateV1,
+  fetchMetadata,
+  findMetadataPda,
 } from "@metaplex-foundation/mpl-token-metadata";
 import {
   createTokenIfMissing,
@@ -30,6 +33,7 @@ import {
   generateSigner,
   percentAmount,
   signerIdentity,
+  publicKey,
 } from "@metaplex-foundation/umi";
 import { Ponzimon } from "../target/types/ponzimon";
 
@@ -46,7 +50,7 @@ const SOL_REWARDS_WALLET_SEED = "sol_rewards_wallet";
 const TOKEN_METADATA = {
   name: "Ponzimon",
   symbol: "PONZI",
-  uri: "https://ipfs.io/ipfs/bafybeihmbp5ho7kzvtx3b3v4n7quw35v57526xa5gfalpgzvvhyirmcmvu",
+  uri: "https://ipfs.io/ipfs/bafkreigbbb7tue6xw6slhfozmcpcm2puvrncvqa2sswpsimomxj5eopa4q",
   external_url: "https://ponzimon.com",
 };
 
@@ -224,7 +228,7 @@ async function initializeProgram(
     const tokenRewardRate = new BN(tokenRewardRateArg);
     const tx = await program.methods
       .initializeProgram(
-        currentSlot.add(new BN(36_000)), // 36_000 slots = 4 hours.  4*60*60/0,4
+        new BN(355416991), // 36_000 slots = 4 hours.  4*60*60/0,4
         TOTAL_SUPPLY,
         initialFarmPurchaseFeeLamports,
         boosterPackCostMicrotokens,
@@ -568,6 +572,77 @@ export async function withdrawSolAndToken(
   }
 }
 
+async function updateTokenMetadata(
+  network: string,
+  keypairPath: string,
+  tokenMintAddress: string,
+  overrides: {
+    name?: string;
+    symbol?: string;
+    uri?: string;
+    external_url?: string;
+  } = {}
+) {
+  if (!keypairPath) {
+    console.error("Please provide path to keypair file as argument");
+    process.exit(1);
+  }
+
+  try {
+    // Load keypair from file
+    const keypairData = JSON.parse(fs.readFileSync(keypairPath, "utf-8"));
+    const wallet = Keypair.fromSecretKey(new Uint8Array(keypairData));
+
+    const umi = createUmi(network);
+    const authorityKey = umi.eddsa.createKeypairFromSecretKey(
+      new Uint8Array(keypairData)
+    );
+    const updateAuthoritySigner = createSignerFromKeypair(umi, authorityKey);
+    umi.use(mplTokenMetadata()).use(signerIdentity(updateAuthoritySigner));
+
+    const tokenMint = publicKey(tokenMintAddress);
+
+    // Merge TOKEN_METADATA with any overrides
+    const finalMetadata = {
+      ...TOKEN_METADATA,
+      ...overrides,
+    };
+
+    console.log("Updating token metadata...");
+    console.log("Final metadata to apply:", finalMetadata);
+
+    // Derive the metadata PDA and fetch existing metadata
+    const metadataPda = findMetadataPda(umi, { mint: tokenMint });
+    const metadata = await fetchMetadata(umi, metadataPda);
+
+    // Build update metadata instruction
+    const updateMetadataIx = updateV1(umi, {
+      mint: tokenMint,
+      authority: updateAuthoritySigner,
+      data: {
+        name: finalMetadata.name,
+        symbol: finalMetadata.symbol,
+        uri: finalMetadata.uri,
+        sellerFeeBasisPoints: 0,
+        creators: metadata.creators,
+      },
+    });
+
+    const tx = await updateMetadataIx.sendAndConfirm(umi);
+
+    console.log({
+      mint: tokenMint.toString(),
+      tx: base58.deserialize(tx.signature)[0],
+      updatedMetadata: finalMetadata,
+    });
+
+    console.log("Token metadata updated successfully!");
+  } catch (error) {
+    console.error("Error:", error);
+    process.exit(1);
+  }
+}
+
 // Modify the bottom of the file to include the new command
 const program = new Command();
 
@@ -862,6 +937,51 @@ program
       "✅ Mint authority set to global state PDA and freeze authority set to null. Tx:",
       sig
     );
+  });
+
+program
+  .command("update-metadata")
+  .description(
+    "Update the token's metadata (uses TOKEN_METADATA as base with optional overrides)"
+  )
+  .requiredOption("-k, --keypair <path>", "Path to keypair file")
+  .requiredOption("-m, --mint <address>", "Token mint address")
+  .option(
+    "-n, --name <string>",
+    "Override token name (default from TOKEN_METADATA)"
+  )
+  .option(
+    "-s, --symbol <string>",
+    "Override token symbol (default from TOKEN_METADATA)"
+  )
+  .option(
+    "--uri <string>",
+    "Override metadata URI (default from TOKEN_METADATA)"
+  )
+  .option(
+    "--external-url <string>",
+    "Override external URL (default from TOKEN_METADATA)"
+  )
+  .option(
+    "-u, --network <url>",
+    "Solana network URL",
+    "https://api.devnet.solana.com"
+  )
+  .action(async (opts) => {
+    const overrides: any = {};
+    if (opts.name) overrides.name = opts.name;
+    if (opts.symbol) overrides.symbol = opts.symbol;
+    if (opts.uri) overrides.uri = opts.uri;
+    if (opts.externalUrl) overrides.external_url = opts.externalUrl;
+
+    console.log("Base metadata (TOKEN_METADATA):", TOKEN_METADATA);
+    if (Object.keys(overrides).length > 0) {
+      console.log("Overrides provided:", overrides);
+    } else {
+      console.log("No overrides provided, using TOKEN_METADATA as-is");
+    }
+
+    await updateTokenMetadata(opts.network, opts.keypair, opts.mint, overrides);
   });
 
 program

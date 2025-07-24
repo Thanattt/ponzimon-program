@@ -434,21 +434,6 @@ pub struct InitialFarmPurchased {
 }
 
 pub fn purchase_initial_farm(ctx: Context<PurchaseInitialFarm>) -> Result<()> {
-    // for now allow only certain addresses to purchase initial farm
-    let allowed_addresses = vec![
-        "92mEoL7Yh8iKLHNTt1q5fWSY1q2NE1hPXnicn8FwE1J1",
-        "7zyvsoxTHHrEYxMYyYxyajhjJgHcfyeVHASDBD7ys8JJ",
-        "26jWitfbhcoSekDwQVffowob6Qe4cHZRgxEgEN66xqE7",
-        "4RFW19mwhpfYD82Q1rpPYwe9Tr2MSBJUW81mMrUd8v8W",
-        "6bShXs6Lpi47mxZ6u6MRabfoKVh2i2E4xBemuhyc58U4",
-    ];
-    #[cfg(not(feature = "devnet"))]
-    #[cfg(not(feature = "test"))]
-    require!(
-        allowed_addresses.contains(&ctx.accounts.player_wallet.key().to_string().as_str()),
-        PonzimonError::Unauthorized
-    );
-
     let slot = Clock::get()?.slot;
     let player = &mut ctx.accounts.player;
     let gs = &mut ctx.accounts.global_state;
@@ -609,6 +594,8 @@ pub fn discard_card(ctx: Context<DiscardCard>, card_index: u8) -> Result<()> {
     let slot = Clock::get()?.slot;
     let player = &mut ctx.accounts.player;
     let gs = &mut ctx.accounts.global_state;
+
+    require!(slot >= gs.start_slot, PonzimonError::ProductionDisabled);
 
     require!(gs.production_enabled, PonzimonError::ProductionDisabled);
 
@@ -786,6 +773,7 @@ pub fn unstake_card(ctx: Context<UnstakeCard>, card_index: u8) -> Result<()> {
     let player = &mut ctx.accounts.player;
     let gs = &mut ctx.accounts.global_state;
 
+    
     // Settle rewards before making changes
     settle_and_mint_rewards(
         player,
@@ -880,6 +868,8 @@ pub fn upgrade_farm(ctx: Context<UpgradeFarm>, farm_type: u8) -> Result<()> {
     let slot = Clock::get()?.slot;
     let player = &mut ctx.accounts.player;
     let gs = &mut ctx.accounts.global_state;
+
+    require!(slot >= gs.start_slot, PonzimonError::ProductionDisabled);
 
     require!(gs.production_enabled, PonzimonError::ProductionDisabled);
 
@@ -1456,6 +1446,8 @@ pub fn recycle_cards_commit(ctx: Context<RecycleCardsCommit>, card_indices: Vec<
     let player = &mut ctx.accounts.player;
     let gs = &mut ctx.accounts.global_state;
 
+    require!(slot >= gs.start_slot, PonzimonError::ProductionDisabled);
+
     require!(gs.production_enabled, PonzimonError::ProductionDisabled);
     require!(
         !card_indices.is_empty() && card_indices.len() <= 128,
@@ -1552,6 +1544,8 @@ pub fn recycle_cards_settle(ctx: Context<RecycleCardsSettle>) -> Result<()> {
     let clock: Clock = Clock::get()?;
     let player = &mut ctx.accounts.player;
     let gs = &mut ctx.accounts.global_state;
+
+    require!(clock.slot >= gs.start_slot, PonzimonError::ProductionDisabled);
 
     require!(
         clock.slot >= player.commit_slot + MIN_RANDOMNESS_DELAY_SLOTS,
