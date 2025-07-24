@@ -708,6 +708,24 @@ program
   });
 
 program
+  .command("show-cards")
+  .description("Show all cards for a player")
+  .requiredOption("-p, --player <address>", "Player wallet address")
+  .option(
+    "-u, --network <url>",
+    "Solana network URL",
+    "https://api.devnet.solana.com"
+  )
+  .action(async (opts) => {
+    const { showCards } = await import("./showCards");
+    await showCards(
+      opts.player,
+      "PNeZtT8TrKSkMCYamwymQsbENKvuiXu2kgqmNsXvQUT",
+      opts.network
+    );
+  });
+
+program
   .command("update-parameter")
   .description(
     "Update a single program parameter by index. Indices: 0:ReferralFee, 1:BurnRate, 2:CooldownSlots, 3:DustThresholdDivisor, 4:InitialFarmPurchaseFeeLamports, 5:BoosterPackCostMicrotokens, 6:GambleFeeLamports, 7:StakingLockupSlots, 8:TokenRewardRate"
