@@ -1,0 +1,558 @@
+:root {
+  font-family:
+    'Trebuchet MS', 'Segoe UI', sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #f5ead6;
+  background:
+    radial-gradient(circle at top, rgba(255, 199, 85, 0.15), transparent 32%),
+    linear-gradient(180deg, #151115 0%, #1d1311 45%, #110e14 100%);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  --surface: rgba(25, 18, 26, 0.86);
+  --surface-strong: rgba(40, 27, 28, 0.92);
+  --outline: #231714;
+  --primary: #ffbb2d;
+  --secondary: #ff6a47;
+  --copy: #f5ead6;
+  --muted: #c7b9af;
+  --accent: #88e16d;
+  --panel-shadow: 0 18px 45px rgba(0, 0, 0, 0.3);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+code {
+  padding: 0.2rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 0.86rem;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.app-shell {
+  position: relative;
+  width: min(1200px, calc(100% - 28px));
+  margin: 0 auto;
+  padding: 24px 0 48px;
+}
+
+.page-backdrop {
+  position: fixed;
+  inset: 0;
+  background:
+    linear-gradient(rgba(14, 10, 18, 0.84), rgba(14, 10, 18, 0.92)),
+    url('https://ponzimon.com/images/backgroundart.png') center / cover no-repeat;
+  opacity: 0.24;
+  pointer-events: none;
+}
+
+.topbar,
+.panel,
+.hero-panel {
+  position: relative;
+  z-index: 1;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 18px;
+  margin-bottom: 24px;
+  border: 3px solid var(--outline);
+  background: rgba(21, 15, 24, 0.88);
+  box-shadow: var(--panel-shadow);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.brand img {
+  width: 46px;
+  height: 46px;
+  object-fit: cover;
+}
+
+.topnav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  color: var(--muted);
+}
+
+.topnav a:hover {
+  color: var(--primary);
+}
+
+.hero-panel {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 24px;
+  margin-bottom: 24px;
+  padding: 28px;
+  border: 3px solid var(--outline);
+  background:
+    linear-gradient(135deg, rgba(255, 141, 55, 0.14), rgba(98, 24, 59, 0.08)),
+    var(--surface-strong);
+  box-shadow: var(--panel-shadow);
+  overflow: hidden;
+}
+
+.hero-copy h1,
+.section-heading h2 {
+  margin: 0;
+  font-size: clamp(2.1rem, 4vw, 4.5rem);
+  line-height: 0.96;
+  letter-spacing: -0.04em;
+}
+
+.section-heading h2 {
+  font-size: clamp(1.5rem, 3vw, 2.5rem);
+}
+
+.eyebrow {
+  margin: 0 0 10px;
+  color: var(--primary);
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.lede {
+  margin: 18px 0 0;
+  max-width: 62ch;
+  color: var(--muted);
+  font-size: 1.02rem;
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.primary-action,
+.secondary-action {
+  padding: 12px 16px;
+  border: 3px solid var(--outline);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  transition:
+    transform 160ms ease,
+    background 160ms ease;
+}
+
+.primary-action {
+  background: var(--primary);
+  color: #1e140e;
+}
+
+.secondary-action {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.primary-action:hover,
+.secondary-action:hover {
+  transform: translate(-2px, -2px);
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.metrics-grid article,
+.stats-row article,
+.system-card,
+.sim-card,
+.creature-card,
+.upgrade-card,
+.roadmap-card {
+  border: 3px solid var(--outline);
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: var(--panel-shadow);
+}
+
+.metrics-grid article {
+  padding: 16px 14px;
+}
+
+.metrics-grid strong {
+  display: block;
+  font-size: 1.5rem;
+  color: var(--primary);
+}
+
+.metrics-grid span {
+  color: var(--muted);
+  text-transform: uppercase;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+}
+
+.hero-stage {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+
+.stage-card {
+  border: 3px solid var(--outline);
+  background: #120e11;
+  overflow: hidden;
+}
+
+.stage-large {
+  min-height: 280px;
+}
+
+.stage-large img {
+  width: 100%;
+  height: 100%;
+  min-height: 280px;
+  object-fit: cover;
+  filter: saturate(1.1);
+}
+
+.stage-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.creature-chip {
+  display: grid;
+  grid-template-columns: 68px 1fr;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 3px solid var(--outline);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.creature-chip img {
+  width: 68px;
+  height: 68px;
+  object-fit: contain;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.creature-chip h2,
+.system-card h3,
+.sim-card h3,
+.creature-card h3,
+.upgrade-card h3,
+.roadmap-card h3,
+.rarity-row strong {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.creature-chip p,
+.system-card p,
+.sim-card p,
+.upgrade-card p,
+.roadmap-card p,
+.rarity-row span {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.panel {
+  margin-bottom: 24px;
+  padding: 24px;
+  border: 3px solid var(--outline);
+  background: var(--surface);
+  box-shadow: var(--panel-shadow);
+}
+
+.section-heading {
+  margin-bottom: 18px;
+}
+
+.system-grid,
+.sim-grid,
+.creature-grid,
+.upgrade-list,
+.roadmap-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.system-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.sim-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.creature-grid {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.upgrade-list {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.roadmap-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.system-card,
+.sim-card,
+.upgrade-card,
+.roadmap-card {
+  padding: 18px;
+}
+
+.card-heading {
+  margin-bottom: 16px;
+}
+
+.field {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.field span {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.field strong {
+  color: var(--primary);
+}
+
+.field input[type='number'],
+.field select {
+  width: 100%;
+  padding: 11px 12px;
+  border: 3px solid var(--outline);
+  color: var(--copy);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.field input[type='range'] {
+  accent-color: var(--primary);
+}
+
+.farm-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.field.compact {
+  margin-bottom: 0;
+}
+
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.stats-row article {
+  padding: 14px;
+}
+
+.stats-row span {
+  display: block;
+  font-size: 0.82rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.stats-row strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 1.14rem;
+  color: var(--primary);
+}
+
+.heist-note,
+.wheel-box {
+  margin-top: 14px;
+  padding: 14px;
+  border: 3px solid var(--outline);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.rarity-table {
+  display: grid;
+  gap: 12px;
+}
+
+.rarity-row {
+  display: grid;
+  grid-template-columns: 1.2fr repeat(3, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 14px 16px;
+  border: 3px solid var(--outline);
+  border-left: 12px solid var(--accent);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.rarity-row div {
+  display: grid;
+  gap: 4px;
+}
+
+.creature-card {
+  padding: 14px;
+  text-align: center;
+  transition: transform 180ms ease;
+}
+
+.creature-card:hover {
+  transform: translateY(-4px);
+}
+
+.creature-card img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: contain;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 8px;
+  margin-bottom: 12px;
+}
+
+.upgrade-card,
+.roadmap-card {
+  min-height: 100%;
+}
+
+.roadmap-card ul,
+.roadmap-card ol {
+  margin: 12px 0 0;
+  padding-left: 18px;
+  color: var(--muted);
+}
+
+.roadmap-card li + li {
+  margin-top: 8px;
+}
+
+.strategy-stack {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.strategy-stack div {
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.strategy-stack div:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.strategy-stack span {
+  display: block;
+  margin-top: 4px;
+  color: var(--primary);
+  font-size: 0.84rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+@media (max-width: 1080px) {
+  .hero-panel,
+  .system-grid,
+  .sim-grid,
+  .upgrade-list,
+  .roadmap-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .creature-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .app-shell {
+    width: min(100%, calc(100% - 18px));
+    padding-top: 10px;
+  }
+
+  .topbar,
+  .hero-panel,
+  .panel {
+    padding: 16px;
+  }
+
+  .topbar,
+  .hero-panel,
+  .system-grid,
+  .sim-grid,
+  .upgrade-list,
+  .roadmap-grid,
+  .metrics-grid,
+  .creature-grid,
+  .rarity-row,
+  .stats-row,
+  .farm-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .topnav {
+    gap: 10px;
+  }
+}

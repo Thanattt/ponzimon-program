@@ -54,13 +54,10 @@ pub fn get_next_rarity(current_rarity: u8) -> Option<u8> {
     }
 }
 
-/// Calculates the current reward rate based on elapsed time since start_slot
+/// Calculates the current reward rate based on elapsed time since start_slot.
 ///
-/// Returns the reward rate per slot in micro-tokens based on the emission schedule:
-/// - Days 1-30: 255,000 tokens/day (1,180,556 micro-tokens per slot)
-/// - Days 31-60: 198,333 tokens/day (918,208 micro-tokens per slot)  
-/// - Days 61-90: 141,667 tokens/day (655,847 micro-tokens per slot)
-/// - After day 90: 0 (no more rewards)
+/// Public docs currently describe a fixed 800,000 PONZI per day emission rate
+/// across a 30-day season, with rewards accruing continuously.
 pub fn calculate_current_reward_rate(current_slot: u64, start_slot: u64) -> u64 {
     if current_slot < start_slot {
         return 0;
@@ -68,17 +65,20 @@ pub fn calculate_current_reward_rate(current_slot: u64, start_slot: u64) -> u64 
 
     let elapsed_slots = current_slot.saturating_sub(start_slot);
 
-    if elapsed_slots < STAGE_1_DURATION_SLOTS {
-        STAGE_1_REWARD_RATE
-    } else if elapsed_slots < STAGE_1_DURATION_SLOTS + STAGE_2_DURATION_SLOTS {
-        STAGE_2_REWARD_RATE
-    } else if elapsed_slots
-        < STAGE_1_DURATION_SLOTS + STAGE_2_DURATION_SLOTS + STAGE_3_DURATION_SLOTS
-    {
-        STAGE_3_REWARD_RATE
+    if elapsed_slots < SEASON_DURATION_SLOTS {
+        SEASON_REWARD_RATE
     } else {
-        0 // After 90 days, no more rewards
+        0
     }
+}
+
+pub fn get_hashpower_for_rarity(rarity: u8) -> Option<u16> {
+    let level = rarity.checked_add(1)? as u32;
+    Some(4u16.pow(level))
+}
+
+pub fn get_berry_consumption_for_rarity(_rarity: u8) -> u8 {
+    0
 }
 
 pub fn calculate_halvings(current_slot: u64, start_slot: u64, halving_interval: u64) -> u64 {

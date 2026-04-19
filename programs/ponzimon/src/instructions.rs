@@ -258,13 +258,13 @@ pub fn initialize_program(
     gs.last_reward_slot = start_slot;
 
     gs.burn_rate = 80;
-    gs.referral_fee = 100;
+    gs.referral_fee = 20;
     gs.production_enabled = true;
     gs.dust_threshold_divisor = 1000; // Default to 0.1%
 
     // Initialize fee configuration with defaults from constants
     gs.initial_farm_purchase_fee_lamports =
-        initial_farm_purchase_fee_lamports.unwrap_or(300_000_000); // 0.3 SOL
+        initial_farm_purchase_fee_lamports.unwrap_or(700_000_000); // 0.7 SOL
     gs.booster_pack_cost_microtokens = booster_pack_cost_microtokens.unwrap_or(200_000_000); // 200 tokens
     gs.gamble_fee_lamports = gamble_fee_lamports.unwrap_or(100_000_000); // 0.1 SOL
 
@@ -484,7 +484,7 @@ pub fn purchase_initial_farm(ctx: Context<PurchaseInitialFarm>) -> Result<()> {
     player.card_count = 0;
     player.staked_cards_bitset = 0; // No cards staked initially
 
-    // Give player 3 starter cards using the IDs from data.ts (not staked initially)
+    // Give player the early-registration reward card from the public docs.
     for &card_id in STARTER_CARD_IDS.iter() {
         if let Some((rarity, hashpower, berry_consumption)) = get_card_by_id(card_id) {
             let card = Card {
@@ -1184,7 +1184,9 @@ pub fn settle_open_booster(ctx: Context<SettleOpenBooster>) -> Result<()> {
             let card_index =
                 (random_u32 as u64 * cards_of_rarity.len() as u64 / (u32::MAX as u64 + 1)) as usize;
 
-            let (card_id, _, hashpower, berry_consumption) = cards_of_rarity[card_index];
+            let (card_id, _, _, _) = cards_of_rarity[card_index];
+            let hashpower = get_hashpower_for_rarity(rarity).unwrap_or(4);
+            let berry_consumption = get_berry_consumption_for_rarity(rarity);
 
             require!(
                 (player.card_count as usize) < MAX_CARDS_PER_PLAYER as usize,
@@ -1194,8 +1196,8 @@ pub fn settle_open_booster(ctx: Context<SettleOpenBooster>) -> Result<()> {
             let new_card = Card {
                 id: *card_id,
                 rarity,
-                hashpower: *hashpower,
-                berry_consumption: *berry_consumption,
+                hashpower,
+                berry_consumption,
             };
             player.add_card(new_card)?;
             card_ids[i] = *card_id;
@@ -1628,11 +1630,12 @@ pub fn recycle_cards_settle(ctx: Context<RecycleCardsSettle>) -> Result<()> {
                     let random_u32 = u32::from_le_bytes(random_bytes);
 
                     let card_index_in_rarity = (random_u32 as usize) % cards_of_next_rarity.len();
-                    let (card_id, _, hashpower, berry_consumption) =
-                        cards_of_next_rarity[card_index_in_rarity];
+                    let (card_id, _, _, _) = cards_of_next_rarity[card_index_in_rarity];
+                    let hashpower = get_hashpower_for_rarity(next_rarity).unwrap_or(4);
+                    let berry_consumption = get_berry_consumption_for_rarity(next_rarity);
 
                     // Store the new card data to add after removing old cards
-                    new_cards.push((*card_id, next_rarity, *hashpower, *berry_consumption));
+                    new_cards.push((*card_id, next_rarity, hashpower, berry_consumption));
                     successful_upgrades += 1;
                 }
             }

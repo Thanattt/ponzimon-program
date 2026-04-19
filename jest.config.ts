@@ -1,5 +1,5 @@
 export default {
-  displayName: "bitsol-program",
+  displayName: "ponzimon-program",
   testEnvironment: "node",
   roots: ["<rootDir>/tests"],
   testPathIgnorePatterns: [
